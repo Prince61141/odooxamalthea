@@ -530,12 +530,21 @@ exports.myExpenses = async (req, res) => {
   }
 };
 
-// Manager: list team expenses (same company)
+// Manager: list team expenses (only direct reports + self). Admin still sees company-wide when using this endpoint.
 exports.teamExpenses = async (req, res) => {
   try {
     const { status } = req.query; // optional filter
-    const filter = { company: req.user.companyId || req.user.company };
+    const baseCompany = req.user.companyId || req.user.company;
+    const filter = { company: baseCompany };
     if (status) filter.status = status;
+
+    if (req.user.role === 'manager') {
+      const subs = await User.find({ manager: req.user.id }).select('_id');
+      const ids = subs.map(u => u._id.toString());
+      ids.push(req.user.id); // include manager's own expenses
+      filter.user = { $in: ids };
+    }
+    // Admin: leave filter as whole company
     const expenses = await Expense.find(filter)
       .populate('user', 'name email role')
       .sort({ createdAt: -1 });
@@ -571,66 +580,72 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
-// Manager: summary analytics
+// Manager: summary analytics (scoped to direct reports + self for managers)
 exports.teamSummary = async (req, res) => {
   try {
     const company = req.user.companyId || req.user.company;
-    
-    // Convert to ObjectId if string
     const mongoose = require('mongoose');
     const companyId = typeof company === 'string' ? new mongoose.Types.ObjectId(company) : company;
-    
-    // Aggregate totals per category
+
+    let userScopeIds = null;
+    if (req.user.role === 'manager') {
+      const subs = await User.find({ manager: req.user.id }).select('_id');
+      userScopeIds = subs.map(u => u._id.toString());
+      userScopeIds.push(req.user.id);
+    }
+    const userIdObjs = userScopeIds ? userScopeIds.map(id => new mongoose.Types.ObjectId(id)) : null;
+    const baseMatch = userIdObjs ? { company: companyId, user: { $in: userIdObjs } } : { company: companyId };
+
+    // Category aggregation
     const categoryAgg = await Expense.aggregate([
-      { $match: { company: companyId } },
+      { $match: baseMatch },
       { $group: { _id: '$category', total: { $sum: '$amount' } } },
       { $sort: { total: -1 } }
     ]);
 
-    // Monthly trend (last 12 months)
+    // Monthly trend (12 months)
     const since = new Date();
-    since.setMonth(since.getMonth() - 11); // include current month
+    since.setMonth(since.getMonth() - 11);
     const monthlyAgg = await Expense.aggregate([
-      { $match: { company: companyId, date: { $gte: since } } },
+      { $match: { ...baseMatch, date: { $gte: since } } },
       { $group: { _id: { y: { $year: '$date' }, m: { $month: '$date' } }, total: { $sum: '$amount' } } },
       { $sort: { '_id.y': 1, '_id.m': 1 } }
     ]);
 
-    // Top employees
+    // Top employees in scope
     const topEmployees = await Expense.aggregate([
-      { $match: { company: companyId } },
+      { $match: baseMatch },
       { $group: { _id: '$user', total: { $sum: '$amount' } } },
       { $sort: { total: -1 } },
       { $limit: 5 }
     ]);
 
-    // Pending count
-    const pendingCount = await Expense.countDocuments({ company: companyId, status: 'pending' });
+    // Pending count in scope
+    const pendingCount = await Expense.countDocuments({ ...baseMatch, status: 'pending' });
 
-    // Average approval time (approved expenses): difference between createdAt and approvedAt (or updatedAt) in hours
+    // Approval time
     const approvalAgg = await Expense.aggregate([
-      { $match: { company: companyId, status: 'approved', approvedAt: { $ne: null } } },
+      { $match: { ...baseMatch, status: 'approved', approvedAt: { $ne: null } } },
       { $project: { diffHours: { $divide: [ { $subtract: ['$approvedAt', '$createdAt'] }, 1000 * 60 * 60 ] } } },
       { $group: { _id: null, avgHours: { $avg: '$diffHours' } } }
     ]);
     const averageApprovalHours = approvalAgg[0]?.avgHours || 0;
 
-    // Expense velocity: compare count of expenses last 7 days vs previous 7 days
+    // Velocity
     const now = new Date();
-    const startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-6); // inclusive 7 day window
+    const startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-6);
     const startPrev = new Date(startCurrent); startPrev.setDate(startPrev.getDate()-7);
     const velocityAgg = await Expense.aggregate([
-      { $match: { company: companyId, date: { $gte: startPrev } } },
+      { $match: { ...baseMatch, date: { $gte: startPrev } } },
       { $project: { period: { $cond: [ { $gte: ['$date', startCurrent] }, 'current', 'previous' ] } } },
       { $group: { _id: '$period', count: { $sum: 1 } } }
     ]);
     let currentCount = 0, previousCount = 0;
     velocityAgg.forEach(r=> { if (r._id === 'current') currentCount = r.count; else if (r._id === 'previous') previousCount = r.count; });
     let velocityChangePct = null;
-    if (previousCount === 0 && currentCount > 0) velocityChangePct = 100;
-    else if (previousCount > 0) velocityChangePct = ((currentCount - previousCount) / previousCount) * 100;
+    if (previousCount === 0 && currentCount > 0) velocityChangePct = 100; else if (previousCount > 0) velocityChangePct = ((currentCount - previousCount) / previousCount) * 100;
 
-    // Resolve employee names for topEmployees
+    // Resolve names
     const userMap = {};
     if (topEmployees.length) {
       const ids = topEmployees.map(t => t._id);
@@ -638,7 +653,6 @@ exports.teamSummary = async (req, res) => {
       users.forEach(u => { userMap[u._id.toString()] = u.name; });
     }
 
-    // Get company currency
     const Company = require('../models/Company');
     const companyDoc = await Company.findById(companyId).select('currency');
     const currency = companyDoc?.currency || req.user.companyCurrency || 'USD';
@@ -649,11 +663,7 @@ exports.teamSummary = async (req, res) => {
       topEmployees: topEmployees.map(t => ({ userId: t._id, name: userMap[t._id.toString()] || 'Unknown', total: t.total })),
       pendingCount,
       averageApprovalHours,
-      expenseVelocity: {
-        current7d: currentCount,
-        previous7d: previousCount,
-        changePct: velocityChangePct
-      },
+      expenseVelocity: { current7d: currentCount, previous7d: previousCount, changePct: velocityChangePct },
       currency
     });
   } catch (e) {

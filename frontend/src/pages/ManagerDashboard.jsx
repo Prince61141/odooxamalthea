@@ -45,6 +45,7 @@ export default function ManagerDashboard(){
   const [selected,setSelected] = useState(null);
   const [actionLoading,setActionLoading] = useState(false);
   const [statusFilter,setStatusFilter] = useState('all');
+  const [employeeFilter,setEmployeeFilter] = useState('all');
   const [search,setSearch] = useState('');
   const [toast,setToast] = useState(null);
   const [notificationsOpen,setNotificationsOpen] = useState(false);
@@ -75,10 +76,11 @@ export default function ManagerDashboard(){
   useEffect(()=>{
     let list=[...teamExpenses];
     if(statusFilter!=='all') list=list.filter(e=>e.status===statusFilter);
+    if(employeeFilter!=='all') list=list.filter(e=> String(e.user?._id)===employeeFilter);
     if(active==='pending') list=list.filter(e=>e.status==='pending');
     if(search){ const q=search.toLowerCase(); list=list.filter(e=> (e.user?.name||'').toLowerCase().includes(q) || e.category.toLowerCase().includes(q)); }
     setFiltered(list);
-  },[teamExpenses,statusFilter,active,search]);
+  },[teamExpenses,statusFilter,employeeFilter,active,search]);
 
   // Notifications: detect new expenses and status changes
   useEffect(()=>{
@@ -244,6 +246,15 @@ export default function ManagerDashboard(){
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
+            <select
+              value={employeeFilter}
+              onChange={e=>setEmployeeFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 hover:dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-900/80 rounded-lg text-sm text-slate-700 dark:text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition">
+              <option value="all">All team members</option>
+              {Array.from(new Map(teamExpenses.map(e=>[e.user?._id, e.user?.name||'Unknown']))).map(([id,name])=> (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
             <button 
               onClick={exportCSV} 
               className="px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-sm transition">
@@ -260,6 +271,9 @@ export default function ManagerDashboard(){
               className="px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-slate-800 transition">
               Refresh
             </button>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium ml-auto pr-2">
+              Showing expenses from your assigned team only
+            </span>
           </div>
         )}
 
