@@ -59,13 +59,14 @@ const ResetPassword = () => {
 	return (
 		<AuthLayout
 			heading="Reset Password"
-			subheading="Enter your new password"
+			subheading="Create a new password for your account"
 			sideContent={<HeroPanel />}
-			altLink={<div>Remember your password? <Link to="/login">Sign in</Link></div>}
+			altLink={<div className="text-[13px]">Remember your password? <Link to="/login" className="text-indigo-600 dark:text-indigo-400 font-semibold">Sign in</Link></div>}
 		>
-			<form className="auth-form" onSubmit={handleSubmit}>
-				<div className="auth-field">
-					<label>New Password</label>
+			<form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full max-w-md" autoComplete="on">
+				{/* New Password */}
+				<div className="group relative">
+					<label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">New Password</label>
 					<input 
 						name="password" 
 						type={showPass ? 'text' : 'password'} 
@@ -73,13 +74,16 @@ const ResetPassword = () => {
 						value={form.password} 
 						onChange={handleChange} 
 						required 
+						className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" 
 					/>
-					<span className="toggle-pass" onClick={() => setShowPass(s => !s)}>
+					<button type="button" onClick={() => setShowPass(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
 						{showPass ? 'Hide' : 'Show'}
-					</span>
+					</button>
 				</div>
-				<div className="auth-field">
-					<label>Confirm Password</label>
+				
+				{/* Confirm Password */}
+				<div className="group relative">
+					<label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Confirm Password</label>
 					<input 
 						name="confirmPassword" 
 						type={showConfirm ? 'text' : 'password'} 
@@ -87,16 +91,23 @@ const ResetPassword = () => {
 						value={form.confirmPassword} 
 						onChange={handleChange} 
 						required 
+						className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" 
 					/>
-					<span className="toggle-pass" onClick={() => setShowConfirm(s => !s)}>
+					<button type="button" onClick={() => setShowConfirm(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
 						{showConfirm ? 'Hide' : 'Show'}
-					</span>
+					</button>
 				</div>
-				<button type="submit" className="auth-primary" disabled={loading}>
+
+				<button 
+					type="submit" 
+					disabled={loading} 
+					className="relative inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 dark:from-indigo-500 dark:to-indigo-400 px-6 py-4 text-sm font-semibold tracking-wide text-white shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/40 hover:-translate-y-0.5 transition disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+				>
 					{loading ? 'Resetting...' : 'Reset Password'}
 				</button>
+
 				{message && (
-					<div className={`auth-message ${success ? 'auth-success' : ''}`}>
+					<div className={`text-xs font-medium mt-1 ${success ? 'text-emerald-500' : 'text-rose-500'}`}>
 						{message}
 					</div>
 				)}
