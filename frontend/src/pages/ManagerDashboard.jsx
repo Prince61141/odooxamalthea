@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import ProfileDrawer from '../components/ProfileDrawer.jsx';
 import { useAuth } from '../components/AuthContext.jsx';
 import api from '../api';
 import ExpenseTable from '../components/ExpenseTable.jsx';
@@ -49,6 +50,7 @@ export default function ManagerDashboard(){
   const [notificationsOpen,setNotificationsOpen] = useState(false);
   const [notifications,setNotifications] = useState([]); // {id,msg,read,ts,type}
   const [profileOpen,setProfileOpen] = useState(false);
+  const [profileDrawerOpen,setProfileDrawerOpen] = useState(false);
   const profileRef = useRef(null);
   const prevMapRef = useRef(new Map());
 
@@ -191,7 +193,7 @@ export default function ManagerDashboard(){
                   </div>
                   <ul className="py-1 text-sm">
                     <li>
-                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                      <button onClick={()=>{ setProfileDrawerOpen(true); setProfileOpen(false); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
                         <Icon.user className="w-4 h-4"/> <span>View Profile</span>
                       </button>
                     </li>
@@ -325,6 +327,7 @@ export default function ManagerDashboard(){
           <button onClick={()=>setToast(null)} className="text-slate-400 hover:text-white">✕</button>
         </div>
       )}
+      <ProfileDrawer open={profileDrawerOpen} onClose={()=>setProfileDrawerOpen(false)} width={420} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../components/AuthContext.jsx';
+import ProfileDrawer from '../components/ProfileDrawer.jsx';
 import api from '../api';
 import { Link } from 'react-router-dom';
 
@@ -50,6 +51,9 @@ export default function UserDashboard() {
   const [toast, setToast] = useState(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]); // {id,msg,read,type,ts}
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const profileRef = useRef(null);
   const [unread, setUnread] = useState(0);
   const [rates, setRates] = useState(null); // FX rates
   const [companyCurrency, setCompanyCurrency] = useState('USD'); // Could fetch from user/company
@@ -82,6 +86,7 @@ export default function UserDashboard() {
   }, []);
 
   useEffect(()=>{ loadExpenses(); }, [loadExpenses]);
+  useEffect(()=>{ if(profileOpen){ const doc=(e)=>{ if(profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false); }; const key=(e)=>{ if(e.key==='Escape') setProfileOpen(false); }; document.addEventListener('mousedown', doc); document.addEventListener('keydown', key); return ()=>{ document.removeEventListener('mousedown', doc); document.removeEventListener('keydown', key); }; } },[profileOpen]);
 
   // Derive notifications from expenses (approved/rejected changes)
   useEffect(()=>{
@@ -331,21 +336,45 @@ export default function UserDashboard() {
               <h1 className="font-semibold text-lg tracking-tight hidden sm:block">Employee Dashboard</h1>
             </div>
             <div className="flex items-center gap-4">
-              <button onClick={toggleDark} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700" aria-label="Toggle dark mode">{dark? <Icon.sun className="w-5 h-5"/> : <Icon.moon className="w-5 h-5"/>}</button>
-              <button onClick={()=> setNotificationsOpen(o=>!o)} className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700" aria-label="Notifications">
+              <button onClick={toggleDark} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" aria-label="Toggle dark mode">{dark? <Icon.sun className="w-5 h-5"/> : <Icon.moon className="w-5 h-5"/>}</button>
+              <button onClick={()=> setNotificationsOpen(o=>!o)} className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700" aria-label="Notifications">
                 <Icon.bell className="w-5 h-5"/>
                 {unread>0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unread}</span>}
               </button>
-              <div className="relative group">
-                <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">U</div>
-                  <span className="hidden sm:inline">User</span>
+              <div className="relative" ref={profileRef}>
+                <button onClick={()=> setProfileOpen(o=>!o)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-2 pr-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <span className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-xs font-semibold shadow-inner">{(role||'U').slice(0,2).toUpperCase()}</span>
+                  <span className="hidden sm:inline-flex flex-col leading-tight text-left">
+                    <span className="text-xs font-medium -mb-0.5 capitalize">{role||'user'}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Menu</span>
+                  </span>
+                  <svg className={`w-3 h-3 transition-transform ${profileOpen? 'rotate-180':''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/></svg>
                 </button>
-                <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-100 dark:border-slate-700 py-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition">
-                  <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700">View Profile</button>
-                  <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700">Settings</button>
-                  <button onClick={logout} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"><Icon.logout className="w-4 h-4"/> Logout</button>
-                </div>
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Signed in as</div>
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{role} user</div>
+                    </div>
+                    <ul className="py-1 text-sm">
+                      <li>
+                        <button onClick={()=>{ setProfileDrawerOpen(true); setProfileOpen(false); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                          <span className="inline-block w-4 h-4 rounded-full bg-indigo-500"/> <span>View Profile</span>
+                        </button>
+                      </li>
+                      <li>
+                        <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                          <span className="inline-block w-4 h-4 rounded-full bg-slate-400"/> <span>Settings</span>
+                        </button>
+                      </li>
+                    </ul>
+                    <div className="py-1 border-t border-slate-100 dark:border-slate-700">
+                      <button onClick={logout} className="w-full flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium">
+                        <Icon.logout className="w-4 h-4"/> <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </header>
@@ -528,6 +557,7 @@ export default function UserDashboard() {
           <button onClick={()=> setToast(null)} className="text-white/70 hover:text-white">✕</button>
         </div>
       )}
+      <ProfileDrawer open={profileDrawerOpen} onClose={()=>setProfileDrawerOpen(false)} width={420} />
     </div>
   );
 }

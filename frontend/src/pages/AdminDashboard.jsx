@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../components/AuthContext.jsx';
+import ProfileDrawer from '../components/ProfileDrawer.jsx';
 
 // Minimal inline icons for consistency
 const Icon = {
@@ -41,6 +42,7 @@ export default function AdminDashboard() {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [toast, setToast] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const profileRef = useRef(null);
   const mounted = useRef(false);
 
@@ -206,7 +208,7 @@ export default function AdminDashboard() {
                   </div>
                   <ul className="py-1 text-sm">
                     <li>
-                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                      <button onClick={()=>{ setProfileDrawerOpen(true); setProfileOpen(false); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
                         <Icon.user className="w-4 h-4"/> <span>View Profile</span>
                       </button>
                     </li>
@@ -372,6 +374,7 @@ export default function AdminDashboard() {
           <button onClick={()=>setToast(null)} className="text-slate-400 hover:text-white">✕</button>
         </div>
       )}
+      <ProfileDrawer open={profileDrawerOpen} onClose={()=>setProfileDrawerOpen(false)} width={420} />
     </div>
   );
 }

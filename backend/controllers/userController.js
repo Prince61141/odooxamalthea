@@ -90,6 +90,36 @@ exports.createUser = async (req, res) => {
   }
 };
 
+// Get current authenticated user profile
+exports.me = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('_id name email role company manager createdAt');
+    if(!user) return res.status(404).json({ error: 'User not found' });
+    return res.json({ id: user._id, name: user.name, email: user.email, role: user.role, company: user.company, manager: user.manager, createdAt: user.createdAt });
+  } catch (e){
+    return res.status(500).json({ error: 'Failed to load profile' });
+  }
+};
+
+// Update current user (name and/or password)
+exports.updateMe = async (req, res) => {
+  try {
+    const { name, password } = req.body;
+    if(!name && !password) return res.status(400).json({ error: 'Nothing to update' });
+    const user = await User.findById(req.user.id);
+    if(!user) return res.status(404).json({ error: 'User not found' });
+    if(name){ user.name = name; }
+    if(password){
+      if(String(password).length < 6) return res.status(400).json({ error: 'Password too short' });
+      user.password = await bcrypt.hash(password, 10);
+    }
+    await user.save();
+    return res.json({ id:user._id, name:user.name, email:user.email, role:user.role, company:user.company, manager:user.manager, createdAt:user.createdAt });
+  } catch(e){
+    return res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
 exports.listManagers = async (req, res) => {
   try {
     const filter = { role: 'manager' };

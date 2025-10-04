@@ -3,6 +3,10 @@ const router = express.Router();
 const { auth, requireAdmin } = require('../middleware/auth');
 const userController = require('../controllers/userController');
 
+// Self profile
+router.get('/me', auth, userController.me);
+router.put('/me', auth, userController.updateMe);
+
 router.get('/', auth, requireAdmin, userController.listAll);
 router.post('/', auth, requireAdmin, userController.createUser);
 router.delete('/:id', auth, requireAdmin, userController.deleteUser);
