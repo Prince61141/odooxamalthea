@@ -154,7 +154,7 @@ export default function ManagerDashboard(){
           <button className="md:hidden p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" onClick={()=>setSidebarOpen(false)}><Icon.x className="w-5 h-5"/></button>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-4 flex flex-col gap-1">
-          {tabs.map(t=>{ const isActive= active===t.id; return <button key={t.id} onClick={()=>{ setActive(t.id); setSidebarOpen(false); if(t.id==='pending') setNotificationsOpen(false); }} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${isActive? 'bg-indigo-600 text-white shadow':'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{Icon[t.icon]({ className:'w-4 h-4'})} <span>{t.label}</span>{ t.id==='pending' && pendingCount>0 && <span className="ml-auto inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-semibold">{pendingCount}</span>}</button>; })}
+          {tabs.map(t=>{ const isActive= active===t.id; return <button key={t.id} onClick={()=>{ setActive(t.id); setSidebarOpen(false); if(t.id==='pending') setNotificationsOpen(false); }} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${isActive? 'bg-indigo-600 text-white shadow':'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{Icon[t.icon]({ className:'w-4 h-4'})} <span>{t.label}</span>{ t.id==='pending' && pendingCount>0 && <span className="ml-auto inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-semibold" style={{ height: "10px", width: "10px", padding: "10px", borderRadius: "50%"}}>{pendingCount}</span>}</button>; })}
           <div className="mt-auto pt-4">
             <button onClick={logout} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><Icon.logout className="w-4 h-4"/> Logout</button>
           </div>
@@ -172,7 +172,7 @@ export default function ManagerDashboard(){
           </div>
           <div className="flex items-center gap-3">
             <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} aria-label="Toggle theme" className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
-            <button onClick={()=>setNotificationsOpen(o=>!o)} aria-label="Notifications" className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+            <button onClick={()=>setNotificationsOpen(o=>!o)} aria-label="Notifications" className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-white">
               <Icon.bell className="w-4 h-4"/>
               {unread>0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-semibold">{unread}</span>}
             </button>
@@ -300,8 +300,8 @@ export default function ManagerDashboard(){
       {/* Notifications drawer */}
       <div className={`fixed top-0 right-0 h-full w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 transform transition-transform duration-300 z-40 flex flex-col ${notificationsOpen? 'translate-x-0':'translate-x-full'}`}>
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">Notifications</h2>
-          <button onClick={()=>setNotificationsOpen(false)} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><Icon.x className="w-4 h-4"/></button>
+          <h2 className="text-sm font-semibold tracking-wide text-white">Notifications</h2>
+          <button onClick={()=>setNotificationsOpen(false)} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-white"><Icon.x className="w-4 h-4"/></button>
         </div>
         <div className="p-4 flex-1 overflow-y-auto space-y-3">
           {!notifications.length && <div className="text-xs text-slate-500 dark:text-slate-400">No notifications yet.</div>}
@@ -314,7 +314,7 @@ export default function ManagerDashboard(){
         </div>
         {notifications.length>0 && (
           <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <button onClick={markAllRead} className="text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex-1">Mark all read</button>
+            <button onClick={markAllRead} className="text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex-1 text-white">Mark all read</button>
             <button onClick={()=> setNotifications([])} className="text-xs px-3 py-2 rounded-lg border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40">Clear</button>
           </div>
         )}

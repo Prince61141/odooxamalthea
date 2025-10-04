@@ -575,9 +575,14 @@ exports.updateStatus = async (req, res) => {
 exports.teamSummary = async (req, res) => {
   try {
     const company = req.user.companyId || req.user.company;
+    
+    // Convert to ObjectId if string
+    const mongoose = require('mongoose');
+    const companyId = typeof company === 'string' ? new mongoose.Types.ObjectId(company) : company;
+    
     // Aggregate totals per category
     const categoryAgg = await Expense.aggregate([
-      { $match: { company } },
+      { $match: { company: companyId } },
       { $group: { _id: '$category', total: { $sum: '$amount' } } },
       { $sort: { total: -1 } }
     ]);
@@ -586,25 +591,25 @@ exports.teamSummary = async (req, res) => {
     const since = new Date();
     since.setMonth(since.getMonth() - 11); // include current month
     const monthlyAgg = await Expense.aggregate([
-      { $match: { company, date: { $gte: since } } },
+      { $match: { company: companyId, date: { $gte: since } } },
       { $group: { _id: { y: { $year: '$date' }, m: { $month: '$date' } }, total: { $sum: '$amount' } } },
       { $sort: { '_id.y': 1, '_id.m': 1 } }
     ]);
 
     // Top employees
     const topEmployees = await Expense.aggregate([
-      { $match: { company } },
+      { $match: { company: companyId } },
       { $group: { _id: '$user', total: { $sum: '$amount' } } },
       { $sort: { total: -1 } },
       { $limit: 5 }
     ]);
 
     // Pending count
-    const pendingCount = await Expense.countDocuments({ company, status: 'pending' });
+    const pendingCount = await Expense.countDocuments({ company: companyId, status: 'pending' });
 
     // Average approval time (approved expenses): difference between createdAt and approvedAt (or updatedAt) in hours
     const approvalAgg = await Expense.aggregate([
-      { $match: { company, status: 'approved', approvedAt: { $ne: null } } },
+      { $match: { company: companyId, status: 'approved', approvedAt: { $ne: null } } },
       { $project: { diffHours: { $divide: [ { $subtract: ['$approvedAt', '$createdAt'] }, 1000 * 60 * 60 ] } } },
       { $group: { _id: null, avgHours: { $avg: '$diffHours' } } }
     ]);
@@ -615,7 +620,7 @@ exports.teamSummary = async (req, res) => {
     const startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-6); // inclusive 7 day window
     const startPrev = new Date(startCurrent); startPrev.setDate(startPrev.getDate()-7);
     const velocityAgg = await Expense.aggregate([
-      { $match: { company, date: { $gte: startPrev } } },
+      { $match: { company: companyId, date: { $gte: startPrev } } },
       { $project: { period: { $cond: [ { $gte: ['$date', startCurrent] }, 'current', 'previous' ] } } },
       { $group: { _id: '$period', count: { $sum: 1 } } }
     ]);

@@ -130,7 +130,7 @@ export default function ProfileDrawer({ open, onClose, width = 420 }) {
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</label>
-                <input name="name" value={form.name} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40" placeholder="Your name" />
+                <input name="name" value={form.name} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm text-slate-500 dark:text-slate-400" disabled/>
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Email</label>
@@ -139,11 +139,11 @@ export default function ProfileDrawer({ open, onClose, width = 420 }) {
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">New Password</label>
-                <input name="password" type="password" value={form.password} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40" placeholder="Leave blank to keep current" />
+                <input name="password" type="password" value={form.password} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-white" placeholder="Leave blank to keep current" />
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Confirm Password</label>
-                <input name="confirm" type="password" value={form.confirm} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40" placeholder="Repeat new password" />
+                <input name="confirm" type="password" value={form.confirm} onChange={onChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-white" placeholder="Repeat new password" />
                 {form.password && form.confirm && form.password!==form.confirm && <p className="text-[11px] text-rose-600">Passwords do not match.</p>}
               </div>
               {error && <div className="text-xs text-rose-600 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-700 px-3 py-2 rounded">{error}</div>}
