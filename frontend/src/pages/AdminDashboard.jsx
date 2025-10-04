@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../components/AuthContext.jsx';
 import ProfileDrawer from '../components/ProfileDrawer.jsx';
+import api from '../api';
+import ExpenseTable from '../components/ExpenseTable.jsx';
+import ExpenseDetailModal from '../components/ExpenseDetailModal.jsx';
+import AnalyticsCharts from '../components/AnalyticsCharts.jsx';
+import TeamSummary from '../components/TeamSummary.jsx';
 
 // Minimal inline icons for consistency
 const Icon = {
@@ -21,6 +26,8 @@ const Icon = {
 const tabs = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
   { id: 'users', label: 'Users', icon: 'users' },
+  { id: 'expenses', label: 'Expenses', icon: 'dashboard' },
+  { id: 'analytics', label: 'Analytics', icon: 'dashboard' },
   { id: 'create', label: 'Add User', icon: 'plus' },
   { id: 'invite', label: 'Invite', icon: 'mail' }
 ];
@@ -45,6 +52,14 @@ export default function AdminDashboard() {
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const profileRef = useRef(null);
   const mounted = useRef(false);
+  // Global expenses (admin)
+  const [allExpenses, setAllExpenses] = useState([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+  const [expenseFilter, setExpenseFilter] = useState('all');
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expenseSelected, setExpenseSelected] = useState(null);
+  const [expenseActionLoading, setExpenseActionLoading] = useState(false);
+  const [globalSummary, setGlobalSummary] = useState(null);
 
   const fetchManagers = useCallback(()=>{
     if (!token) return;
@@ -76,7 +91,23 @@ export default function AdminDashboard() {
 
   useEffect(()=>{ fetchManagers(); fetchSummary(); fetchUsers(); }, [fetchManagers, fetchSummary, fetchUsers]);
 
+  // Load global expenses / summary when relevant tab active
+  useEffect(()=>{ if(active==='expenses' || active==='analytics'){ loadAllExpenses(); loadGlobalSummary(); } }, [active]);
+
   useEffect(()=>{ mounted.current = true; return ()=>{ mounted.current=false; }; },[]);
+
+  const loadAllExpenses = async () => {
+    if(!token) return; setExpensesLoading(true);
+    try { const res = await api.get('/expenses/all'); setAllExpenses(res.data || []); }
+    catch { setAllExpenses([]); }
+    finally { setExpensesLoading(false); }
+  };
+  const loadGlobalSummary = async () => { if(!token) return; try { const res = await api.get('/expenses/all/summary'); setGlobalSummary(res.data); } catch { setGlobalSummary(null); } };
+  const updateExpenseStatus = async ({ status, comment }) => {
+    if(!expenseSelected) return; try { setExpenseActionLoading(true); await api.put(`/expenses/${expenseSelected._id}/status`, { status, comment }); setToast({ type:'success', msg:`Expense ${status}` }); setExpenseSelected(null); loadAllExpenses(); loadGlobalSummary(); }
+    catch { setToast({ type:'error', msg:'Update failed'}); } finally { setExpenseActionLoading(false); }
+  };
+  const filteredExpenses = allExpenses.filter(e => (expenseFilter==='all' || e.status===expenseFilter) && (!expenseSearch || (e.user?.name||'').toLowerCase().includes(expenseSearch.toLowerCase()) || e.category.toLowerCase().includes(expenseSearch.toLowerCase())) );
 
   // Auto refresh summary every 60s
   useEffect(()=>{
@@ -187,7 +218,13 @@ export default function AdminDashboard() {
         <header className="h-16 px-4 md:px-8 flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-30">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button className="md:hidden p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" onClick={()=>setSidebarOpen(true)}><Icon.menu className="w-5 h-5" /></button>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{active==='overview'?'Admin Overview': active==='users'?'All Users': active==='create'?'Add User':'Send Invite'}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{
+              active==='overview'? 'Admin Overview' :
+              active==='users'? 'All Users' :
+              active==='expenses'? 'All Expenses' :
+              active==='analytics'? 'Global Analytics' :
+              active==='create'? 'Add User' : 'Send Invite'
+            }</h1>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} aria-label="Toggle theme" className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
@@ -317,6 +354,39 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {active==='expenses' && (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 flex flex-wrap gap-3 items-center">
+                <select value={expenseFilter} onChange={e=>setExpenseFilter(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <input value={expenseSearch} onChange={e=>setExpenseSearch(e.target.value)} placeholder="Search employee/category" className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 flex-1 min-w-[180px]" />
+                <button onClick={loadAllExpenses} className="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white">Refresh</button>
+              </div>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-white">All Expenses</h2>
+                {expensesLoading ? <div className="text-sm text-slate-500">Loading...</div> : <ExpenseTable data={filteredExpenses} onRowClick={setExpenseSelected} />}
+              </div>
+            </div>
+          )}
+
+          {active==='analytics' && (
+            <div className="space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                <SummaryCard title="Pending" value={globalSummary?.pendingCount ?? '—'} />
+                <SummaryCard title="Total Amount" value={allExpenses.reduce((a,b)=>a+Number(b.amount||0),0).toFixed(2)} sub="All expenses" />
+                <SummaryCard title="Employees" value={new Set(allExpenses.map(e=>e.user?._id)).size} />
+                <SummaryCard title="Avg Approval (h)" value={(globalSummary?.averageApprovalHours||0).toFixed(1)} sub="Avg hours" />
+                <SummaryCard title="Velocity 7d" value={`${globalSummary?.expenseVelocity?.current7d||0}`} sub={(()=>{ const cp=globalSummary?.expenseVelocity?.changePct; if(cp==null) return 'No prior data'; const sign = cp>0? '+':''; return `${sign}${cp.toFixed(1)}% vs prev`; })()} />
+              </div>
+              <AnalyticsCharts summary={globalSummary} />
+              <TeamSummary expenses={allExpenses} />
+            </div>
+          )}
+
           {active==='create' && (
             <div className="space-y-6">
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6">
@@ -375,6 +445,7 @@ export default function AdminDashboard() {
         </div>
       )}
       <ProfileDrawer open={profileDrawerOpen} onClose={()=>setProfileDrawerOpen(false)} width={420} />
+      {expenseSelected && <ExpenseDetailModal expense={expenseSelected} onClose={()=>setExpenseSelected(null)} onUpdate={updateExpenseStatus} loading={expenseActionLoading} />}
     </div>
   );
 }

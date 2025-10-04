@@ -553,7 +553,13 @@ exports.updateStatus = async (req, res) => {
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
-    const expense = await Expense.findOne({ _id: id, company: req.user.companyId || req.user.company });
+    // Admin can update ANY expense; managers restricted to their company
+    let expense;
+    if (req.user.role === 'admin') {
+      expense = await Expense.findById(id);
+    } else {
+      expense = await Expense.findOne({ _id: id, company: req.user.companyId || req.user.company });
+    }
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
     expense.status = status;
     expense.managerComment = comment || '';
@@ -641,5 +647,92 @@ exports.teamSummary = async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to load summary' });
+  }
+};
+
+// Admin: list all expenses across companies (optionally filter by status or company)
+exports.allExpenses = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    const { status, company } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (company) filter.company = company;
+    const expenses = await Expense.find(filter)
+      .populate('user', 'name email role')
+      .sort({ createdAt: -1 });
+    res.json(expenses);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load expenses' });
+  }
+};
+
+// Admin: global summary analytics (optionally restricted to a company via ?company=ID)
+exports.allSummary = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    const { company } = req.query;
+    const matchBase = company ? { company } : {};
+
+    const categoryAgg = await Expense.aggregate([
+      { $match: matchBase },
+      { $group: { _id: '$category', total: { $sum: '$amount' } } },
+      { $sort: { total: -1 } }
+    ]);
+
+    const since = new Date();
+    since.setMonth(since.getMonth() - 11);
+    const monthlyAgg = await Expense.aggregate([
+      { $match: { ...matchBase, date: { $gte: since } } },
+      { $group: { _id: { y: { $year: '$date' }, m: { $month: '$date' } }, total: { $sum: '$amount' } } },
+      { $sort: { '_id.y': 1, '_id.m': 1 } }
+    ]);
+
+    const topEmployees = await Expense.aggregate([
+      { $match: matchBase },
+      { $group: { _id: '$user', total: { $sum: '$amount' } } },
+      { $sort: { total: -1 } },
+      { $limit: 5 }
+    ]);
+
+    const pendingCount = await Expense.countDocuments({ ...matchBase, status: 'pending' });
+
+    const approvalAgg = await Expense.aggregate([
+      { $match: { ...matchBase, status: 'approved', approvedAt: { $ne: null } } },
+      { $project: { diffHours: { $divide: [ { $subtract: ['$approvedAt', '$createdAt'] }, 1000 * 60 * 60 ] } } },
+      { $group: { _id: null, avgHours: { $avg: '$diffHours' } } }
+    ]);
+    const averageApprovalHours = approvalAgg[0]?.avgHours || 0;
+
+    const now = new Date();
+    const startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-6);
+    const startPrev = new Date(startCurrent); startPrev.setDate(startPrev.getDate()-7);
+    const velocityAgg = await Expense.aggregate([
+      { $match: { ...matchBase, date: { $gte: startPrev } } },
+      { $project: { period: { $cond: [ { $gte: ['$date', startCurrent] }, 'current', 'previous' ] } } },
+      { $group: { _id: '$period', count: { $sum: 1 } } }
+    ]);
+    let currentCount = 0, previousCount = 0;
+    velocityAgg.forEach(r=> { if (r._id === 'current') currentCount = r.count; else if (r._id === 'previous') previousCount = r.count; });
+    let velocityChangePct = null;
+    if (previousCount === 0 && currentCount > 0) velocityChangePct = 100; else if (previousCount > 0) velocityChangePct = ((currentCount - previousCount) / previousCount) * 100;
+
+    const userMap = {};
+    if (topEmployees.length) {
+      const ids = topEmployees.map(t => t._id);
+      const users = await User.find({ _id: { $in: ids } }).select('name');
+      users.forEach(u => { userMap[u._id.toString()] = u.name; });
+    }
+
+    res.json({
+      categories: categoryAgg.map(c => ({ category: c._id, total: c.total })),
+      monthly: monthlyAgg.map(m => ({ month: `${m._id.y}-${String(m._id.m).padStart(2,'0')}`, total: m.total })),
+      topEmployees: topEmployees.map(t => ({ userId: t._id, name: userMap[t._id.toString()] || 'Unknown', total: t.total })),
+      pendingCount,
+      averageApprovalHours,
+      expenseVelocity: { current7d: currentCount, previous7d: previousCount, changePct: velocityChangePct }
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load global summary' });
   }
 };

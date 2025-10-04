@@ -29,4 +29,12 @@ router.put('/:id/status', auth, requireManager, expenseController.updateStatus);
 // Manager: summary analytics
 router.get('/team/summary', auth, requireManager, expenseController.teamSummary);
 
+// Admin: global expenses & summary
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  next();
+}
+router.get('/all', auth, requireAdmin, expenseController.allExpenses);
+router.get('/all/summary', auth, requireAdmin, expenseController.allSummary);
+
 module.exports = router;
