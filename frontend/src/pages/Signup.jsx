@@ -31,13 +31,12 @@ const Signup = () => {
   const handleSubmit = async e => {
     e.preventDefault();
     if (!allRulesOk || !passwordsMatch) return;
-    setLoading(true);
-    setMessage('');
+    setLoading(true); setMessage('');
     try {
       const payload = { name: form.name, email: form.email, password: form.password, country: form.country };
       const res = await axios.post(`${API_BASE}/api/auth/signup`, payload);
       setMessage(res.data.message || 'Signup successful!');
-      setTimeout(() => navigate('/login'), 1200);
+      setTimeout(()=> navigate('/login'), 1200);
     } catch (err) {
       setMessage(err.response?.data?.error || 'Signup failed');
     }
@@ -46,47 +45,54 @@ const Signup = () => {
 
   return (
     <AuthLayout
-      heading="Sign Up"
-      subheading="Secure Your Communications with Easymail"
+      heading="Create Account"
+      subheading="Join SmartExpense and streamline reimbursements"
       sideContent={<HeroPanel />}
-      altLink={<div>Already member? <Link to="/login">Sign in</Link></div>}
+      altLink={<div className="text-[13px]">Already member? <Link to="/login" className="text-indigo-600 dark:text-indigo-400 font-semibold">Sign in</Link></div>}
     >
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <div className="auth-field">
-          <label>Name</label>
-          <input name="name" placeholder="Company Name" value={form.name} onChange={handleChange} required />
-        </div>
-        <div className="auth-field">
-          <label>Email</label>
-          <input name="email" type="email" placeholder="company@email.com" value={form.email} onChange={handleChange} required />
-        </div>
-        <div className="auth-field">
-          <label>Password</label>
-          <input name="password" type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={handleChange} required />
-          <span className="toggle-pass" onClick={() => setShowPass(s => !s)}>{showPass ? 'Hide' : 'Show'}</span>
-        </div>
-        <ul className="password-rules">
-          <PasswordRule ok={rules.length}>Least 8 characters</PasswordRule>
-          <PasswordRule ok={rules.numberOrSymbol}>Least one number (0-9) or a symbol</PasswordRule>
-            <PasswordRule ok={rules.lowerUpper}>Lowercase (a-z) and uppercase (A-Z).</PasswordRule>
-        </ul>
-        <div className="auth-field">
-          <label>Re-Type Password</label>
-          <input name="confirm" type={showPass ? 'text' : 'password'} placeholder="Repeat password" value={form.confirm} onChange={handleChange} required />
-        </div>
-        <div className="auth-field">
-          <label>Country</label>
-          <select name="country" value={form.country} onChange={handleChange} required>
-            <option value="">Select Country</option>
-            {countries.map((c, i) => (
-              <option key={i} value={c.name.common}>{c.name.common}</option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="auth-primary" disabled={loading || !allRulesOk || !passwordsMatch}>
-          {loading ? 'Signing up...' : 'Sign Up'}
-        </button>
-        {message && <div className={`auth-message ${/successful/i.test(message) ? 'auth-success' : ''}`}>{message}</div>}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full max-w-xl">
+          {/* Name */}
+          <div className="group relative">
+            <label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Name</label>
+            <input name="name" placeholder="Jane Doe" value={form.name} onChange={handleChange} required className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" />
+          </div>
+          {/* Email */}
+          <div className="group relative">
+            <label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Email</label>
+            <input name="email" type="email" placeholder="you@company.com" value={form.email} onChange={handleChange} required className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" />
+          </div>
+          {/* Password */}
+          <div className="group relative">
+            <label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Password</label>
+            <input name="password" type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={handleChange} required className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" />
+            <button type="button" onClick={()=>setShowPass(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline">{showPass? 'Hide':'Show'}</button>
+          </div>
+          {/* Password Rules */}
+          <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 -mt-2">
+            <li className={"flex items-center gap-2 " + (rules.length? 'text-emerald-500':'')}> <span className="w-2 h-2 rounded-full bg-current" /> 8+ chars</li>
+            <li className={"flex items-center gap-2 " + (rules.numberOrSymbol? 'text-emerald-500':'')}> <span className="w-2 h-2 rounded-full bg-current" /> Number / symbol</li>
+            <li className={"flex items-center gap-2 " + (rules.lowerUpper? 'text-emerald-500':'')}> <span className="w-2 h-2 rounded-full bg-current" /> Mixed case</li>
+          </ul>
+          {/* Confirm */}
+          <div className="group relative -mt-1">
+            <label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Confirm Password</label>
+              <input name="confirm" type={showPass ? 'text' : 'password'} placeholder="Repeat password" value={form.confirm} onChange={handleChange} required className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100 placeholder:text-slate-400" />
+            {!passwordsMatch && form.confirm && (
+              <div className="mt-1 text-[11px] text-rose-500 font-medium">Passwords do not match</div>
+            )}
+          </div>
+          {/* Country */}
+          <div className="group relative">
+            <label className="absolute left-4 top-2 text-[10px] font-semibold tracking-wide uppercase text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400">Country</label>
+            <select name="country" value={form.country} onChange={handleChange} required className="w-full rounded-2xl bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur px-4 pt-6 pb-3 text-sm border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:text-slate-100">
+              <option value="">Select Country</option>
+              {countries.map((c,i)=> <option key={i} value={c.name.common}>{c.name.common}</option> )}
+            </select>
+          </div>
+          <button type="submit" disabled={loading || !allRulesOk || !passwordsMatch} className="relative inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 dark:from-indigo-500 dark:to-indigo-400 px-6 py-4 text-sm font-semibold tracking-wide text-white shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/40 hover:-translate-y-0.5 transition disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed">
+            {loading ? 'Signing up...' : 'Sign Up'}
+          </button>
+          {message && <div className={`text-xs font-medium mt-1 ${/successful/i.test(message) ? 'text-emerald-500' : 'text-rose-500'}`}>{message}</div>}
       </form>
     </AuthLayout>
   );

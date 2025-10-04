@@ -19,17 +19,7 @@
   overflow: hidden;
 }
 
-.auth-left {
-  width: 50%;
-  max-width: 600px;
-  padding: 70px 90px 56px;
-  display: flex;
-  flex-direction: column;
-  background: #ffffff;
-  box-shadow: 0 10px 40px -10px rgba(38,56,120,0.15);
-  position: relative;
-  z-index: 2;
-}
+/* .auth-left deprecated in Tailwind redesign */
 
 .auth-right {
   flex: 1;
@@ -62,15 +52,9 @@
 .auth-header-row { display: flex; justify-content: flex-end; font-size: 14px; gap: 6px; margin-bottom: 28px; }
 .auth-header-row a { color: #3849c2; font-weight: 600; text-decoration: none; }
 
-.auth-title { font-size: 52px; line-height: 1.05; margin: 0 0 6px; font-weight: 600; letter-spacing: -1px; color: #0d1536; }
-.auth-subtitle { margin: 0 0 34px; color: #5d6c89; font-size: 15px; max-width: 320px; font-weight: 500; }
+/* Heading styles now via Tailwind */
 
-form.auth-form { display: flex; flex-direction: column; gap: 22px; width: 100%; }
-
-.auth-field { position: relative; display: flex; align-items: center; background: #f4f7fb; padding: 8px 16px; border-radius: 14px; border: 2px solid transparent; transition: .2s border, .25s background; }
-.auth-field:focus-within { border-color: #4a5bff; background: #fff; }
-.auth-field input, .auth-field select { flex: 1; border: none; background: transparent; font-size: 15px; padding: 12px 4px 6px; outline: none; color: #0d1536; font-family: inherit; }
-.auth-field label { position: absolute; left: 18px; top: 6px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; font-weight: 600; color: #7a89a8; }
+/* Legacy form.field styles removed */
 
 .toggle-pass { cursor: pointer; font-size: 13px; color: #4152d0; font-weight: 500; }
 
@@ -79,9 +63,7 @@ form.auth-form { display: flex; flex-direction: column; gap: 22px; width: 100%; 
 .password-rules li.rule-ok { color: #15803d; }
 .password-rules li:before { content: '•'; font-size: 20px; line-height: 0; }
 
-button.auth-primary { background: linear-gradient(90deg,#4c56ff,#3352d6); color: #fff; border: none; border-radius: 30px; padding: 18px 32px; font-size: 15px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 12px 32px -8px rgba(83,103,255,.55); transition:.25s transform,.25s box-shadow; letter-spacing:.3px; }
-button.auth-primary:hover { transform: translateY(-3px); box-shadow: 0 18px 40px -10px rgba(83,103,255,.55); }
-button.auth-primary:disabled { opacity: .5; cursor: not-allowed; transform:none; box-shadow:none; }
+/* Legacy button removed */
 
 .auth-message { font-size: 13px; margin-top: 4px; font-weight: 500; color: #c2410c; }
 .auth-success { color: #15803d; }
