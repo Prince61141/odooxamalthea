@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -8,6 +7,7 @@ const userRoutes = require('./routes/users');
 const companyRoutes = require('./routes/company');
 const countryRoutes = require('./routes/countries');
 const currencyRoutes = require('./routes/currency');
+const expenseRoutes = require('./routes/expenses');
 
 const app = express();
 app.use(cors());
@@ -19,6 +19,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/countries', countryRoutes);
 app.use('/api/currency', currencyRoutes);
+app.use('/api/expenses', expenseRoutes);
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
