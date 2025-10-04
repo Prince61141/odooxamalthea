@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AuthLayout, { HeroPanel } from '../components/AuthLayout.jsx';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../components/AuthContext.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 const Login = () => {
 	const navigate = useNavigate();
+	const { login, isAuthenticated, getDashboardPath } = useAuth();
 	const [form, setForm] = useState({ email: '', password: '' });
 	const [loading, setLoading] = useState(false);
 	const [message, setMessage] = useState('');
 	const [showPass, setShowPass] = useState(false);
+
+	useEffect(() => {
+		if (isAuthenticated) {
+			navigate(getDashboardPath(), { replace: true });
+		}
+	}, [isAuthenticated, navigate, getDashboardPath]);
 
 	const handleChange = e => {
 		setForm({ ...form, [e.target.name]: e.target.value });
@@ -23,9 +31,10 @@ const Login = () => {
 		try {
 			const res = await axios.post(`${API_BASE}/api/auth/login`, form);
 			setMessage(res.data.message || 'Login successful!');
-			// store token if desired
-			if (res.data.token) localStorage.setItem('token', res.data.token);
-			setTimeout(() => navigate('/'), 1200);
+			if (res.data.token) {
+				login(res.data.token);
+				// navigate after context updated (short delay not required due to effect above)
+			}
 		} catch (err) {
 			setMessage(err.response?.data?.error || 'Login failed');
 		}
