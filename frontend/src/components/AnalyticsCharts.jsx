@@ -38,6 +38,19 @@ export default function AnalyticsCharts({ summary }) {
   const gridColor = isDark ? '#475569' : '#e2e8f0';
   const bgColor = isDark ? '#1e293b' : '#fff';
   
+  // Get currency symbol
+  const getCurrencySymbol = (currency) => {
+    const symbols = {
+      'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'INR': '₹',
+      'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'CHF': 'Fr', 'SEK': 'kr',
+      'NZD': 'NZ$', 'SGD': 'S$', 'HKD': 'HK$', 'NOK': 'kr', 'KRW': '₩',
+      'TRY': '₺', 'RUB': '₽', 'BRL': 'R$', 'ZAR': 'R', 'MXN': '$'
+    };
+    return symbols[currency] || currency || '$';
+  };
+  
+  const currencySymbol = getCurrencySymbol(summary.currency);
+  
   // Check if all arrays are empty
   const hasNoData = (!summary.categories || summary.categories.length === 0) && 
                     (!summary.monthly || summary.monthly.length === 0) && 
@@ -75,7 +88,7 @@ export default function AnalyticsCharts({ summary }) {
                   innerRadius={50} 
                   outerRadius={90} 
                   paddingAngle={4}
-                  label={({ category, total }) => `${category}: $${total.toFixed(2)}`}
+                  label={({ category, total }) => `${category}: ${currencySymbol}${total.toFixed(2)}`}
                 >
                   {summary.categories.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
@@ -132,7 +145,7 @@ export default function AnalyticsCharts({ summary }) {
             summary.topEmployees.map(emp => (
               <li key={emp.userId} className="flex items-center justify-between text-sm bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2">
                 <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{emp.name}</span>
-                <span className="text-slate-900 dark:text-white font-semibold">${emp.total.toFixed(2)}</span>
+                <span className="text-slate-900 dark:text-white font-semibold">{currencySymbol}{emp.total.toFixed(2)}</span>
               </li>
             ))
           ) : (

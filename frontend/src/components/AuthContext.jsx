@@ -60,6 +60,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const getCompanyCurrency = () => {
+    if (!token) return 'USD';
+    const parsed = parseToken(token);
+    return parsed?.companyCurrency || 'USD';
+  };
+
   const value = {
     isAuthenticated: !!token,
     token,
@@ -68,6 +74,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     loading,
     getDashboardPath,
+    getCompanyCurrency,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

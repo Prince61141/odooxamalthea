@@ -638,6 +638,11 @@ exports.teamSummary = async (req, res) => {
       users.forEach(u => { userMap[u._id.toString()] = u.name; });
     }
 
+    // Get company currency
+    const Company = require('../models/Company');
+    const companyDoc = await Company.findById(companyId).select('currency');
+    const currency = companyDoc?.currency || req.user.companyCurrency || 'USD';
+
     res.json({
       categories: categoryAgg.map(c => ({ category: c._id, total: c.total })),
       monthly: monthlyAgg.map(m => ({ month: `${m._id.y}-${String(m._id.m).padStart(2,'0')}`, total: m.total })),
@@ -648,7 +653,8 @@ exports.teamSummary = async (req, res) => {
         current7d: currentCount,
         previous7d: previousCount,
         changePct: velocityChangePct
-      }
+      },
+      currency
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to load summary' });

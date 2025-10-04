@@ -145,6 +145,19 @@ export default function ManagerDashboard(){
     </div>
   );
 
+  // Currency symbol helper
+  const getCurrencySymbol = (currency) => {
+    const symbols = {
+      'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'INR': '₹',
+      'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'CHF': 'Fr', 'SEK': 'kr',
+      'NZD': 'NZ$', 'SGD': 'S$', 'HKD': 'HK$', 'NOK': 'kr', 'KRW': '₩',
+      'TRY': '₺', 'RUB': '₽', 'BRL': 'R$', 'ZAR': 'R', 'MXN': '$'
+    };
+    return symbols[currency] || currency || '$';
+  };
+
+  const currencySymbol = getCurrencySymbol(summary?.currency);
+
   return (
     <div className={(dark? 'dark ' : '') + 'min-h-screen bg-slate-100 dark:bg-slate-900 flex'}>
       {/* Sidebar */}
@@ -259,7 +272,7 @@ export default function ManagerDashboard(){
                 <div className="space-y-6">
                   <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
                     <SummaryCard title="Pending" value={pendingCount} />
-                    <SummaryCard title="Total Amount" value={teamExpenses.reduce((a,b)=>a+Number(b.amount||0),0).toFixed(2)} sub="All expenses" />
+                    <SummaryCard title="Total Amount" value={`${currencySymbol}${teamExpenses.reduce((a,b)=>a+Number(b.amount||0),0).toFixed(2)}`} sub="All expenses" />
                     <SummaryCard title="Employees" value={new Set(teamExpenses.map(e=>e.user?._id)).size} />
                     <SummaryCard title="Avg Approval (h)" value={(summary?.averageApprovalHours||0).toFixed(1)} sub="Avg hours to approve" />
                     <SummaryCard title="Velocity 7d" value={`${summary?.expenseVelocity?.current7d||0}`} sub={(()=>{ const cp=summary?.expenseVelocity?.changePct; if(cp==null) return 'No prior data'; const sign = cp>0? '+':''; return `${sign}${cp.toFixed(1)}% vs prev`; })()} />
@@ -270,7 +283,7 @@ export default function ManagerDashboard(){
                       <h2 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-100">Recent Expenses</h2>
                       <ExpenseTable data={teamExpenses.slice(0,8)} onRowClick={setSelected} />
                     </div>
-                    <TeamSummary expenses={teamExpenses} />
+                    <TeamSummary expenses={teamExpenses} currency={summary?.currency} />
                   </div>
                 </div>
               )}
@@ -289,7 +302,7 @@ export default function ManagerDashboard(){
               {active==='reports' && (
                 <div className="space-y-6">
                   <AnalyticsCharts summary={summary} />
-                  <TeamSummary expenses={teamExpenses} />
+                  <TeamSummary expenses={teamExpenses} currency={summary?.currency} />
                 </div>
               )}
             </>
