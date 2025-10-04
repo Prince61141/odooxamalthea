@@ -39,10 +39,14 @@ function toAbsoluteFromApiBase(path) {
 }
 
 export default function UserDashboard() {
-  const { role, logout } = useAuth();
+  const { role, logout, getCompanyCurrency } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [form, setForm] = useState({ amount:'', currency:'USD', category:'', description:'', date:'', file:null });
+  
+  // Get company currency from auth context
+  const companyCurrency = getCompanyCurrency();
+  
+  const [form, setForm] = useState({ amount:'', currency: companyCurrency, category:'', description:'', date:'', file:null });
   const [submitting, setSubmitting] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -56,7 +60,6 @@ export default function UserDashboard() {
   const profileRef = useRef(null);
   const [unread, setUnread] = useState(0);
   const [rates, setRates] = useState(null); // FX rates
-  const [companyCurrency, setCompanyCurrency] = useState('USD'); // Could fetch from user/company
   const [convertedValue, setConvertedValue] = useState(null);
   const [aiSuggestion, setAiSuggestion] = useState(null);
   const [dark, setDark] = useState(()=> {
@@ -257,6 +260,19 @@ export default function UserDashboard() {
 
   const filtered = expenses.filter(e=> (filter==='all'|| e.status===filter) && ( !search || (e.category+e.description).toLowerCase().includes(search.toLowerCase()) ) );
 
+  // Currency symbol helper
+  const getCurrencySymbol = (currency) => {
+    const symbols = {
+      'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'INR': '₹',
+      'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'CHF': 'Fr', 'SEK': 'kr',
+      'NZD': 'NZ$', 'SGD': 'S$', 'HKD': 'HK$', 'NOK': 'kr', 'KRW': '₩',
+      'TRY': '₺', 'RUB': '₽', 'BRL': 'R$', 'ZAR': 'R', 'MXN': '$'
+    };
+    return symbols[currency] || currency || '$';
+  };
+  
+  const currencySymbol = getCurrencySymbol(companyCurrency);
+
   const summary = React.useMemo(()=>{
     const total = expenses.reduce((a,b)=> a + Number(b.amount||0),0);
     const approvedExpenses = expenses.filter(e=>e.status==='approved');
@@ -384,8 +400,8 @@ export default function UserDashboard() {
             {/* Summary / Dashboard Cards */}
             <section id="dashboard" className={`${activeSection==='dashboard'? 'block' : 'hidden'} space-y-6`}>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
-                <SummaryCard title="Total Submitted" value={`$${summary.total.toFixed(2)}`} sub="All statuses" gradient="from-indigo-500 to-blue-500" />
-                <SummaryCard title="Approved" value={`$${summary.approved.toFixed(2)}`} sub="Approved total" gradient="from-emerald-500 to-teal-500" />
+                <SummaryCard title="Total Submitted" value={`${currencySymbol}${summary.total.toFixed(2)}`} sub="All statuses" gradient="from-indigo-500 to-blue-500" />
+                <SummaryCard title="Approved" value={`${currencySymbol}${summary.approved.toFixed(2)}`} sub="Approved total" gradient="from-emerald-500 to-teal-500" />
                 <SummaryCard title="Pending" value={String(summary.pendingCount)} sub="Awaiting review" gradient="from-amber-500 to-amber-600" />
                 <SummaryCard title="Last Submission" value={summary.lastDate} sub="Most recent" gradient="from-fuchsia-500 to-pink-500" />
                 <SummaryCard title="Avg Approval (h)" value={summary.avgApprovalHours.toFixed(1)} sub="Avg hours" gradient="from-cyan-500 to-sky-500" />
@@ -473,8 +489,8 @@ export default function UserDashboard() {
                 {/* Dashboard summary visible on wide screens when in submit view */}
                 <div className="flex-1 min-w-[260px] space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <MiniMetric label="Total" value={`$${summary.total.toFixed(2)}`} />
-                    <MiniMetric label="Approved" value={`$${summary.approved.toFixed(2)}`} />
+                    <MiniMetric label="Total" value={`${currencySymbol}${summary.total.toFixed(2)}`} />
+                    <MiniMetric label="Approved" value={`${currencySymbol}${summary.approved.toFixed(2)}`} />
                     <MiniMetric label="Pending" value={String(summary.pendingCount)} />
                     <MiniMetric label="Last" value={summary.lastDate} />
                   </div>
