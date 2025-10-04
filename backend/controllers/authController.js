@@ -38,12 +38,25 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).populate('company');
     if (!user) return res.status(400).json({ error: 'Invalid credentials' });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ error: 'Invalid credentials' });
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
-    res.json({ message: 'Login successful', token });
+    const payload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      companyId: user.company ? user.company._id : null,
+      companyCurrency: user.company ? user.company.currency : null,
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+    res.json({
+      message: 'Login successful',
+      token,
+      role: user.role,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      company: user.company
+    });
   } catch (err) {
     res.status(500).json({ error: 'Login failed' });
   }
