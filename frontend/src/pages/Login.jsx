@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import AuthLayout, { HeroPanel } from '../components/AuthLayout.jsx';
+import { Link, useNavigate } from 'react-router-dom';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 const Login = () => {
+	const navigate = useNavigate();
 	const [form, setForm] = useState({ email: '', password: '' });
 	const [loading, setLoading] = useState(false);
 	const [message, setMessage] = useState('');
+	const [showPass, setShowPass] = useState(false);
 
 	const handleChange = e => {
 		setForm({ ...form, [e.target.name]: e.target.value });
@@ -15,8 +21,11 @@ const Login = () => {
 		setLoading(true);
 		setMessage('');
 		try {
-			const res = await axios.post('http://localhost:5000/api/auth/login', form);
+			const res = await axios.post(`${API_BASE}/api/auth/login`, form);
 			setMessage(res.data.message || 'Login successful!');
+			// store token if desired
+			if (res.data.token) localStorage.setItem('token', res.data.token);
+			setTimeout(() => navigate('/'), 1200);
 		} catch (err) {
 			setMessage(err.response?.data?.error || 'Login failed');
 		}
@@ -24,13 +33,26 @@ const Login = () => {
 	};
 
 	return (
-		<form onSubmit={handleSubmit}>
-			<h2>Login</h2>
-			<input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} required />
-			<input name="password" type="password" placeholder="Password" value={form.password} onChange={handleChange} required />
-			<button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
-			{message && <div>{message}</div>}
-		</form>
+		<AuthLayout
+			heading="Sign In"
+			subheading="Welcome back, access your inbox securely"
+			sideContent={<HeroPanel />}
+			altLink={<div>New here? <Link to="/signup">Create account</Link></div>}
+		>
+			<form className="auth-form" onSubmit={handleSubmit}>
+				<div className="auth-field">
+					<label>Email</label>
+					<input name="email" type="email" placeholder="you@email.com" value={form.email} onChange={handleChange} required />
+				</div>
+				<div className="auth-field">
+					<label>Password</label>
+					<input name="password" type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={handleChange} required />
+					<span className="toggle-pass" onClick={() => setShowPass(s => !s)}>{showPass ? 'Hide' : 'Show'}</span>
+				</div>
+				<button type="submit" className="auth-primary" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
+				{message && <div className={`auth-message ${/successful/i.test(message) ? 'auth-success' : ''}`}>{message}</div>}
+			</form>
+		</AuthLayout>
 	);
 };
 
