@@ -7,14 +7,151 @@ const { fileTypeFromBuffer } = require('file-type');
 
 const currencyService = require('../util/currencyService');
 
-// Improved OCR text parser: handles broken text, noisy OCR, and detached symbols
+// --- Optional Gemini extraction helpers ---
+async function extractWithGemini(buffer, mime) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (!mime || !mime.startsWith('image/')) return null; // PDFs not supported by Gemini image endpoint directly
+  try {
+    const base64 = buffer.toString('base64');
+    const preferredModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const candidates = [
+      { ver: 'v1', model: preferredModel },
+      { ver: 'v1', model: 'gemini-1.5-flash-latest' },
+      { ver: 'v1', model: 'gemini-1.5-pro' },
+      { ver: 'v1', model: 'gemini-1.5-flash-002' },
+      { ver: 'v1', model: 'gemini-1.5-flash-8b' },
+      { ver: 'v1', model: 'gemini-1.5-pro-001' },
+      { ver: 'v1beta', model: preferredModel },
+      { ver: 'v1beta', model: 'gemini-1.5-flash-latest' },
+      { ver: 'v1beta', model: 'gemini-1.5-pro' },
+      { ver: 'v1beta', model: 'gemini-1.5-flash-002' },
+      { ver: 'v1beta', model: 'gemini-1.5-flash-8b' },
+      { ver: 'v1beta', model: 'gemini-1.5-pro-001' }
+    ];
+    const prompt = [
+      'You are given a receipt image. Extract the final payable total, date, currency, and merchant.',
+      'Return STRICT JSON only with keys: amount (number), currency (3-letter ISO like USD, EUR, INR), date (YYYY-MM-DD), merchant (string or null).',
+      'Rules:',
+      '- amount must be the grand total/amount due, not subtotal or tax.',
+      '- date must be the transaction date in YYYY-MM-DD; convert from local format if needed.',
+      '- if a field is unknown, use null.',
+    ].join('\n');
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mime, data: base64 } }
+          ]
+        }
+      ],
+      generationConfig: { temperature: 0 }
+    };
+
+    let lastErr = null;
+    for (const c of candidates) {
+      const url = `https://generativelanguage.googleapis.com/${c.ver}/models/${c.model}:generateContent?key=${apiKey}`;
+      try {
+        const resp = await axios.post(url, body, {
+          timeout: 20000,
+          headers: { 'x-goog-api-key': apiKey }
+        });
+        const parts = resp.data?.candidates?.[0]?.content?.parts || [];
+        const text = parts.map(p => p.text).filter(Boolean).join('\n');
+        const parsed = safeParseStructuredJson(text);
+        if (parsed) return sanitizeGeminiExtraction(parsed);
+        // If parsed null but no error, keep trying other candidates
+      } catch (err) {
+        lastErr = err;
+        if (String(err?.response?.status) === '404' && process.env.OCR_DEBUG === 'true') {
+          console.warn('[gemini] 404 for URL:', url);
+        }
+        // try next candidate
+      }
+    }
+    if (lastErr) throw lastErr;
+    return null;
+  } catch (err) {
+    console.warn('[gemini] extraction failed:', err.message);
+    return null;
+  }
+}
+
+function safeParseStructuredJson(text) {
+  if (!text) return null;
+  let t = String(text).trim();
+  // Strip code fences if present
+  t = t.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+  // Attempt to locate a JSON object within extra commentary
+  const firstBrace = t.indexOf('{');
+  const lastBrace = t.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    t = t.slice(firstBrace, lastBrace + 1);
+  }
+  try { return JSON.parse(t); } catch { return null; }
+}
+
+function sanitizeGeminiExtraction(obj) {
+  const out = { amount: null, currency: null, date: null, merchant: null };
+  // amount
+  if (obj && obj.amount != null) {
+    if (typeof obj.amount === 'number') out.amount = obj.amount;
+    else if (typeof obj.amount === 'string') {
+      const n = normalizeAmountString(obj.amount);
+      if (n != null) out.amount = n;
+    }
+  }
+  // currency
+  if (obj && obj.currency) {
+    const c = String(obj.currency).trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(c)) out.currency = c;
+  }
+  // date: expect YYYY-MM-DD
+  if (obj && obj.date) {
+    const s = String(obj.date).trim();
+    // Normalize common formats to YYYY-MM-DD
+    const isoMatch = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    const dmyMatch = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+    let iso = null;
+    if (isoMatch) {
+      const y = +isoMatch[1], m=+isoMatch[2], d=+isoMatch[3];
+      iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    } else if (dmyMatch) {
+      let d=+dmyMatch[1], m=+dmyMatch[2], y=+dmyMatch[3];
+      if (y < 100) y += 2000;
+      iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    } else {
+      // As last resort rely on Date parsing
+      const dt = new Date(s);
+      if (!isNaN(dt)) iso = dt.toISOString().slice(0,10);
+    }
+    out.date = iso;
+  }
+  // merchant
+  if (obj && obj.merchant) out.merchant = String(obj.merchant).trim().slice(0,100);
+  return out;
+}
+
+function normalizeAmountString(raw) {
+  if (!raw) return null;
+  let r = String(raw).replace(/[^0-9.,]/g, '');
+  if (/[,]\d{2}$/.test(r) && !r.includes('.')) r = r.replace(',', '.');
+  r = r.replace(/(\d)[\s,](?=\d{3}(?:[\s.,]|$))/g, '$1');
+  r = r.replace(/,(?=\d{3}(?:[\.,]|$))/g, '');
+  r = r.replace(/\s+/g, '');
+  const v = parseFloat(r);
+  return (!isNaN(v) && v > 0 && v < 1e7) ? v : null;
+}
+
 function parseOcrText(text, currencyRegex, symbolMap) {
   if (!text || typeof text !== 'string') return {};
 
   // 1️⃣ Normalize OCR text
   let clean = text
     .replace(/\r/g, '\n')
-    .replace(/[^\S\n]+/g, ' ')          // collapse extra spaces
+    .replace(/[^\S\n]+/g, ' ')
     .replace(/([A-Z])\s+([A-Z])/g, '$1$2') // merge split caps: "T O T A L" -> "TOTAL"
     .replace(/([0-9])\s+([0-9])/g, '$1$2') // merge split digits: "2 3 . 5 0" -> "23.50"
     .replace(/[^\x20-\x7E\n]/g, '')     // remove weird OCR chars
@@ -24,12 +161,59 @@ function parseOcrText(text, currencyRegex, symbolMap) {
   let amount = null, currency = null, date = null, merchant = null;
 
   // 2️⃣ Define regex patterns
-  const totalRegex = /(total|amount|balance|grand\s*total)/i;
-  const moneyRegex = /([$€£₹]?\s?\d{1,3}(?:[,\d]{0,})?(?:[.,]\d{2})?)/;
-  const dateRegex = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/;
+  const totalRegex = /(grand\s*total|total\s*due|amount\s*due|total|balance)/i;
+  const moneyRegex = /([$€£₹]?\s?\d{1,3}(?:[\.,\s]?\d{3})*(?:[\.,]\d{2})?|[A-Za-z]{3}\s?\d+(?:[\.,]\d{2})?)/;
+  const dateRegex = /(\b\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}\b|\b\d{4}[\/\.\-]\d{1,2}[\/\.\-]\d{1,2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b)/i;
   const currencyNameRegex = /(usd|inr|eur|gbp|jpy|cad|aud|dollar|rupee|euro|pound|yen)/i;
 
+  const normalizeAmountRaw = (raw) => {
+    if (!raw) return null;
+    let r = raw.replace(/[^0-9.,]/g, '');
+    // Convert European decimal comma if no dot present
+    if (/[,]\d{2}$/.test(r) && !r.includes('.')) r = r.replace(',', '.');
+    // Remove thousand separators (commas or spaces when clearly thousands)
+    r = r.replace(/(\d)[\s,](?=\d{3}(?:[\s.,]|$))/g, '$1');
+    r = r.replace(/,(?=\d{3}(?:[\.,]|$))/g, '');
+    // Remove remaining spaces
+    r = r.replace(/\s+/g, '');
+    const v = parseFloat(r);
+    return (!isNaN(v) && v > 0 && v < 1e7) ? v : null;
+  };
+
+  const parseDateSmart = (str, inferredCurrency) => {
+    if (!str) return null;
+    // Month name formats — let Date parse handle
+    if (/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)/i.test(str)) {
+      const d = new Date(str.replace(/(\d{1,2})(st|nd|rd|th)/i, '$1'));
+      return isNaN(d) ? null : d;
+    }
+    // Numeric formats
+    const m1 = str.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})$/);
+    if (m1) {
+      let a = parseInt(m1[1], 10), b = parseInt(m1[2], 10), y = parseInt(m1[3], 10);
+      if (y < 100) y += 2000;
+      // Disambiguate dd/mm vs mm/dd using simple rules and currency
+      const isUsdStyle = ['USD','CAD','AUD'].includes((inferredCurrency || '').toUpperCase());
+      let day, month;
+      if (a > 12 && b <= 12) { day = a; month = b; }
+      else if (b > 12 && a <= 12) { month = a; day = b; }
+      else if (isUsdStyle) { month = a; day = b; }
+      else { day = a; month = b; }
+      const d = new Date(y, (month||1)-1, day||1);
+      return isNaN(d) ? null : d;
+    }
+    const m2 = str.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})$/);
+    if (m2) {
+      const y = parseInt(m2[1], 10), m = parseInt(m2[2], 10), d = parseInt(m2[3], 10);
+      const dt = new Date(y, m-1, d);
+      return isNaN(dt) ? null : dt;
+    }
+    const d = new Date(str);
+    return isNaN(d) ? null : d;
+  };
+
   // 3️⃣ Try to find "total" line first
+  // Build candidate lines, prioritize bottom-most totals
   const candidateLines = lines.filter(l => totalRegex.test(l)).concat(lines);
 
   // STRICT PASS: only capture amount immediately after (or before) a currency symbol/code
@@ -37,16 +221,6 @@ function parseOcrText(text, currencyRegex, symbolMap) {
   const codeTokens = (currencyRegex ? currencyRegex.source : '').replace(/[()]/g,'').split('|').filter(t=> t.length===3 && /^[A-Za-z]{3}$/.test(t));
   const currencyWordTokens = ['USD','INR','EUR','GBP','JPY','CAD','AUD'];
   const allCurrencyIndicators = new Set([...symbolTokens, ...codeTokens, ...currencyWordTokens]);
-
-  const normalizeAmountRaw = (raw) => {
-    if (!raw) return null;
-    let r = raw.replace(/[^0-9.,]/g,'');
-    if (/[,]\d{2}$/.test(r) && !r.includes('.')) r = r.replace(',', '.');
-    r = r.replace(/,(?=\d{3}(?:[.,]|$))/g,'');
-    r = r.replace(/,/g,'');
-    const v = parseFloat(r);
-    return (!isNaN(v) && v>0 && v<1e7) ? v : null;
-  };
 
   let strictFound = false;
   for (const line of candidateLines) {
@@ -106,8 +280,21 @@ function parseOcrText(text, currencyRegex, symbolMap) {
 
   // If strict pass failed to find amount, fall back to previous simpler logic (but excluding obvious order/invoice numbers)
   if (!amount) {
-    for (const line of candidateLines) {
-      if (/order\s*#?|invoice\s*#?/i.test(line)) continue; // skip order/invoice lines
+    // Score lines for totals preference, scanning bottom-up
+    const scoreLine = (l) => {
+      if (/subtotal/i.test(l)) return -2;
+      if (/(tax|tip|vat|service)/i.test(l)) return -3;
+      if (/grand\s*total/i.test(l)) return 5;
+      if (/total\s*due|amount\s*due/i.test(l)) return 4;
+      if (/total/i.test(l)) return 3;
+      if (/balance/i.test(l)) return 1;
+      return 0;
+    };
+    let best = { score: -Infinity, idx: -1, val: null };
+    for (let idx = lines.length - 1; idx >= 0; idx--) {
+      const line = lines[idx];
+      if (/order\s*#?|invoice\s*#?/i.test(line)) continue;
+      // Detect currency if unknown
       if (!currency) {
         const sym = Object.keys(symbolMap).find(s => line.includes(s));
         if (sym) currency = symbolMap[sym];
@@ -124,22 +311,41 @@ function parseOcrText(text, currencyRegex, symbolMap) {
         }
       }
       const m = line.match(moneyRegex);
-      if (m) {
-        let raw = m[1].replace(/[^0-9.,]/g, '');
-        if (/[,]\d{2}$/.test(raw) && !raw.includes('.')) raw = raw.replace(',', '.');
-        raw = raw.replace(/,(?=\d{3}(?:[.,]|$))/g,'');
-        raw = raw.replace(/,/g,'');
-        const val = parseFloat(raw);
-        if (!isNaN(val) && val > 0 && val < 1e7) { amount = val; break; }
+      if (!m) continue;
+      // Support values like 'INR 1,234.00' or '$12.34'
+      const raw = m[0];
+      const val = normalizeAmountRaw(raw);
+      if (val == null) continue;
+      const score = scoreLine(line);
+      const candidate = { score, idx, val };
+      if (candidate.score > best.score || (candidate.score === best.score && candidate.idx > best.idx)) {
+        best = candidate;
       }
+      // Early exit if very strong signal found near bottom
+      if (best.score >= 5 && best.idx >= lines.length - 5) break;
     }
+    if (best.val != null) amount = best.val;
   }
 
   // Date detection after amount logic
   if (!date) {
-    for (const line of candidateLines) {
+    // Search from top and then bottom for a valid date, using currency to disambiguate
+    for (const line of lines) {
       const dMatch = line.match(dateRegex);
-      if (dMatch) { const parsed = new Date(dMatch[1]); if (!isNaN(parsed)) { date = parsed; break; } }
+      if (dMatch) {
+        const parsed = parseDateSmart(dMatch[0], currency);
+        if (parsed) { date = parsed; break; }
+      }
+    }
+    if (!date) {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        const dMatch = line.match(dateRegex);
+        if (dMatch) {
+          const parsed = parseDateSmart(dMatch[0], currency);
+          if (parsed) { date = parsed; break; }
+        }
+      }
     }
   }
 
@@ -193,6 +399,13 @@ exports.uploadReceipt = async (req, res) => {
 
   let ocrText = '';
   let parsed = {};
+    // Prefer Gemini for image receipts if configured
+    // TEMPORARILY DISABLED: fix API version issue first
+    // const gemTry = await extractWithGemini(buffer, type.mime);
+    // if (gemTry && (gemTry.amount || gemTry.date || gemTry.currency || gemTry.merchant)) {
+    //   parsed = { ...parsed, ...gemTry };
+    //   if (process.env.OCR_DEBUG === 'true') console.log('[gemini.debug] parsed', parsed);
+    // }
     if (process.env.OCR_API_URL && process.env.OCR_API_KEY) {
       try {
         const base64 = buffer.toString('base64');
@@ -216,7 +429,9 @@ exports.uploadReceipt = async (req, res) => {
         await currencyService.ensureCurrencyDataLoaded();
         const currencyRegex = currencyService.getCurrencyRegex();
         const symbolMap = currencyService.getSymbolMap();
-        parsed = parseOcrText(ocrText, currencyRegex, symbolMap);
+        const legacyParsed = parseOcrText(ocrText, currencyRegex, symbolMap);
+        // Merge: prefer Gemini confident fields first
+        parsed = { ...legacyParsed, ...parsed };
         if (process.env.OCR_DEBUG === 'true') {
           console.log('[ocr.debug] raw length:', ocrText.length, 'parsed:', parsed);
         }
@@ -283,7 +498,7 @@ exports.createExpense = async (req, res) => {
     }
     const expense = new Expense({
       user: req.user.id,
-      company: req.user.company,
+      company: req.user.companyId || req.user.company,
       amount,
       currency,
       category,
@@ -319,7 +534,7 @@ exports.myExpenses = async (req, res) => {
 exports.teamExpenses = async (req, res) => {
   try {
     const { status } = req.query; // optional filter
-    const filter = { company: req.user.company };
+    const filter = { company: req.user.companyId || req.user.company };
     if (status) filter.status = status;
     const expenses = await Expense.find(filter)
       .populate('user', 'name email role')
@@ -338,7 +553,7 @@ exports.updateStatus = async (req, res) => {
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
-    const expense = await Expense.findOne({ _id: id, company: req.user.company });
+    const expense = await Expense.findOne({ _id: id, company: req.user.companyId || req.user.company });
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
     expense.status = status;
     expense.managerComment = comment || '';
@@ -353,7 +568,7 @@ exports.updateStatus = async (req, res) => {
 // Manager: summary analytics
 exports.teamSummary = async (req, res) => {
   try {
-    const company = req.user.company;
+    const company = req.user.companyId || req.user.company;
     // Aggregate totals per category
     const categoryAgg = await Expense.aggregate([
       { $match: { company } },

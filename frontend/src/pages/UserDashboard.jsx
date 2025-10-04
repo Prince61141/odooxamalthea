@@ -26,6 +26,17 @@ const statusStyles = {
   rejected: 'bg-rose-100 text-rose-700 border border-rose-200'
 };
 
+// Helper: build absolute URL for a server-relative path using axios baseURL
+function toAbsoluteFromApiBase(path) {
+  if (!path) return null;
+  try {
+    const base = api.defaults.baseURL?.replace(/\/(api)\/?$/, '') || '';
+    return base + path;
+  } catch {
+    return path;
+  }
+}
+
 export default function UserDashboard() {
   const { role, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -120,6 +131,23 @@ export default function UserDashboard() {
     else if (/license|saas|subscription|software|tool/.test(desc)) setAiSuggestion('Software');
     else setAiSuggestion(null);
   }, [form.description]);
+  // Apply AI category suggestion
+  const applySuggestion = () => {
+    if (aiSuggestion) setForm(f => ({ ...f, category: aiSuggestion }));
+  };
+
+  // Apply OCR extracted values into the form
+  const applyOcrValues = () => {
+    const o = receiptMeta.ocrData || {};
+    setForm(f => ({
+      ...f,
+      amount: o.amount != null ? String(o.amount) : f.amount,
+      currency: o.currency || f.currency,
+      date: o.date ? (() => { try { return new Date(o.date).toISOString().split('T')[0]; } catch { return f.date; } })() : f.date,
+      description: o.merchant || f.description,
+    }));
+    setToast({ type: 'info', msg: 'Applied extracted values' });
+  };
 
   // Voice input (simple grammar)
   const startVoice = () => {
@@ -375,6 +403,38 @@ export default function UserDashboard() {
                     {form.file && <span className="text-xs px-2 py-1 rounded bg-indigo-50 dark:bg-slate-700 border border-indigo-200 dark:border-slate-600">{form.file.name}</span>}
                     {voiceSupported && <button type="button" onClick={startVoice} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg border bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600"><Icon.mic className="w-4 h-4"/> Voice</button>}
                   </div>
+                  {/* Drag & drop zone */}
+                  <div ref={dropRef} className="mt-1 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 p-4 text-xs text-gray-500 dark:text-slate-400 bg-gray-50/50 dark:bg-slate-700/30">
+                    Drag & drop a receipt image or PDF here
+                  </div>
+                  {/* Upload progress */}
+                  {uploading && (
+                    <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                      <div className="bg-indigo-600 h-2" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  )}
+                  {/* OCR preview */}
+                  {(receiptMeta.ocrData || toAbsoluteFromApiBase(receiptMeta.receiptUrl)) && (
+                    <div className="rounded-lg border border-gray-200 dark:border-slate-600 p-3 bg-gray-50 dark:bg-slate-700/30 text-xs space-y-2">
+                      <div className="font-semibold text-gray-700 dark:text-slate-200">Extracted from receipt</div>
+                      {receiptMeta.ocrData && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div><span className="opacity-70">Amount:</span> {receiptMeta.ocrData.amount ?? '—'}</div>
+                          <div><span className="opacity-70">Currency:</span> {receiptMeta.ocrData.currency || '—'}</div>
+                          <div><span className="opacity-70">Date:</span> {receiptMeta.ocrData.date || '—'}</div>
+                          <div><span className="opacity-70">Merchant:</span> {receiptMeta.ocrData.merchant || '—'}</div>
+                        </div>
+                      )}
+                      {toAbsoluteFromApiBase(receiptMeta.receiptUrl) && (
+                        <div className="pt-2">
+                          <a href={toAbsoluteFromApiBase(receiptMeta.receiptUrl)} target="_blank" rel="noreferrer" className="underline text-indigo-600 dark:text-indigo-400">View uploaded receipt</a>
+                        </div>
+                      )}
+                      {receiptMeta.ocrData && (
+                        <div className="pt-1"><button type="button" onClick={applyOcrValues} className="px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white">Use extracted values</button></div>
+                      )}
+                    </div>
+                  )}
                   {convertedValue && <div className="text-xs text-gray-600 dark:text-slate-400">≈ {companyCurrency} {convertedValue.toFixed(2)} (company currency)</div>}
                   <div className="flex items-center gap-3">
                     <button disabled={submitting} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow disabled:opacity-50 disabled:cursor-not-allowed"><Icon.plus className="w-4 h-4"/>{submitting? 'Submitting...' : 'Submit Expense'}</button>
