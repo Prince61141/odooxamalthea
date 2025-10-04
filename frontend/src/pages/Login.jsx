@@ -56,8 +56,17 @@ const Login = () => {
 				<div className="auth-field">
 					<label>Password</label>
 					<input name="password" type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={handleChange} required />
+					
 					<span className="toggle-pass" onClick={() => setShowPass(s => !s)}>{showPass ? 'Hide' : 'Show'}</span>
 				</div>
+
+				<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+					<Link to="/forgot-password" style={{ fontSize: '0.875rem', color: '#4f46e5', textDecoration: 'none' }}>
+						Forgot Password?
+					</Link>
+				</div>
+
+
 				<button type="submit" className="auth-primary" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
 				{message && <div className={`auth-message ${/successful/i.test(message) ? 'auth-success' : ''}`}>{message}</div>}
 			</form>

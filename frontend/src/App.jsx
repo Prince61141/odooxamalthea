@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import UserDashboard from './pages/UserDashboard.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -27,6 +29,8 @@ const App = () => (
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/user-dashboard" element={<ProtectedRoute roles={["employee"]} element={<UserDashboard />} />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/manager-dashboard" element={<ProtectedRoute roles={["manager"]} element={<ManagerDashboard />} />} />
         <Route path="/admin-dashboard" element={<ProtectedRoute roles={["admin"]} element={<AdminDashboard />} />} />
         <Route path="/" element={<LandingPage/>} />

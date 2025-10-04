@@ -54,7 +54,7 @@ exports.createUser = async (req, res) => {
 
     // Find or create user with a temporary password
     let user = await User.findOne({ email });
-    const tempPassword = process.env.INVITE_TEMP_PASSWORD || 'ChangeMe123!';
+    const tempPassword = process.env.INVITE_TEMP_PASSWORD || '123456';
     if (!user) {
       const hashed = await bcrypt.hash(tempPassword, 10);
       const payload = { name: name || 'New User', email, role, company: req.user.companyId || null, password: hashed };
@@ -138,7 +138,7 @@ exports.sendInvite = async (req, res) => {
 
     // Find or create user with a temporary password
     let user = await User.findOne({ email });
-    const tempPassword = process.env.INVITE_TEMP_PASSWORD || 'ChangeMe123!';
+    const tempPassword = process.env.INVITE_TEMP_PASSWORD || '123456';
     if (!user) {
       const hashed = await bcrypt.hash(tempPassword, 10);
       const payload = { name: name || 'New User', email, role, company: req.user.companyId || null, password: hashed };
