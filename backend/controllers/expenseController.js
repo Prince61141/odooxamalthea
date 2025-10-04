@@ -7,133 +7,6 @@ const { fileTypeFromBuffer } = require('file-type');
 
 const currencyService = require('../util/currencyService');
 
-// --- Optional Gemini extraction helpers ---
-async function extractWithGemini(buffer, mime) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  if (!mime || !mime.startsWith('image/')) return null; // PDFs not supported by Gemini image endpoint directly
-  try {
-    const base64 = buffer.toString('base64');
-    const preferredModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    const candidates = [
-      { ver: 'v1', model: preferredModel },
-      { ver: 'v1', model: 'gemini-1.5-flash-latest' },
-      { ver: 'v1', model: 'gemini-1.5-pro' },
-      { ver: 'v1', model: 'gemini-1.5-flash-002' },
-      { ver: 'v1', model: 'gemini-1.5-flash-8b' },
-      { ver: 'v1', model: 'gemini-1.5-pro-001' },
-      { ver: 'v1beta', model: preferredModel },
-      { ver: 'v1beta', model: 'gemini-1.5-flash-latest' },
-      { ver: 'v1beta', model: 'gemini-1.5-pro' },
-      { ver: 'v1beta', model: 'gemini-1.5-flash-002' },
-      { ver: 'v1beta', model: 'gemini-1.5-flash-8b' },
-      { ver: 'v1beta', model: 'gemini-1.5-pro-001' }
-    ];
-    const prompt = [
-      'You are given a receipt image. Extract the final payable total, date, currency, and merchant.',
-      'Return STRICT JSON only with keys: amount (number), currency (3-letter ISO like USD, EUR, INR), date (YYYY-MM-DD), merchant (string or null).',
-      'Rules:',
-      '- amount must be the grand total/amount due, not subtotal or tax.',
-      '- date must be the transaction date in YYYY-MM-DD; convert from local format if needed.',
-      '- if a field is unknown, use null.',
-    ].join('\n');
-    const body = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mime, data: base64 } }
-          ]
-        }
-      ],
-      generationConfig: { temperature: 0 }
-    };
-
-    let lastErr = null;
-    for (const c of candidates) {
-      const url = `https://generativelanguage.googleapis.com/${c.ver}/models/${c.model}:generateContent?key=${apiKey}`;
-      try {
-        const resp = await axios.post(url, body, {
-          timeout: 20000,
-          headers: { 'x-goog-api-key': apiKey }
-        });
-        const parts = resp.data?.candidates?.[0]?.content?.parts || [];
-        const text = parts.map(p => p.text).filter(Boolean).join('\n');
-        const parsed = safeParseStructuredJson(text);
-        if (parsed) return sanitizeGeminiExtraction(parsed);
-        // If parsed null but no error, keep trying other candidates
-      } catch (err) {
-        lastErr = err;
-        if (String(err?.response?.status) === '404' && process.env.OCR_DEBUG === 'true') {
-          console.warn('[gemini] 404 for URL:', url);
-        }
-        // try next candidate
-      }
-    }
-    if (lastErr) throw lastErr;
-    return null;
-  } catch (err) {
-    console.warn('[gemini] extraction failed:', err.message);
-    return null;
-  }
-}
-
-function safeParseStructuredJson(text) {
-  if (!text) return null;
-  let t = String(text).trim();
-  // Strip code fences if present
-  t = t.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
-  // Attempt to locate a JSON object within extra commentary
-  const firstBrace = t.indexOf('{');
-  const lastBrace = t.lastIndexOf('}');
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    t = t.slice(firstBrace, lastBrace + 1);
-  }
-  try { return JSON.parse(t); } catch { return null; }
-}
-
-function sanitizeGeminiExtraction(obj) {
-  const out = { amount: null, currency: null, date: null, merchant: null };
-  // amount
-  if (obj && obj.amount != null) {
-    if (typeof obj.amount === 'number') out.amount = obj.amount;
-    else if (typeof obj.amount === 'string') {
-      const n = normalizeAmountString(obj.amount);
-      if (n != null) out.amount = n;
-    }
-  }
-  // currency
-  if (obj && obj.currency) {
-    const c = String(obj.currency).trim().toUpperCase();
-    if (/^[A-Z]{3}$/.test(c)) out.currency = c;
-  }
-  // date: expect YYYY-MM-DD
-  if (obj && obj.date) {
-    const s = String(obj.date).trim();
-    // Normalize common formats to YYYY-MM-DD
-    const isoMatch = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-    const dmyMatch = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
-    let iso = null;
-    if (isoMatch) {
-      const y = +isoMatch[1], m=+isoMatch[2], d=+isoMatch[3];
-      iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    } else if (dmyMatch) {
-      let d=+dmyMatch[1], m=+dmyMatch[2], y=+dmyMatch[3];
-      if (y < 100) y += 2000;
-      iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    } else {
-      // As last resort rely on Date parsing
-      const dt = new Date(s);
-      if (!isNaN(dt)) iso = dt.toISOString().slice(0,10);
-    }
-    out.date = iso;
-  }
-  // merchant
-  if (obj && obj.merchant) out.merchant = String(obj.merchant).trim().slice(0,100);
-  return out;
-}
-
 function normalizeAmountString(raw) {
   if (!raw) return null;
   let r = String(raw).replace(/[^0-9.,]/g, '');
@@ -399,13 +272,7 @@ exports.uploadReceipt = async (req, res) => {
 
   let ocrText = '';
   let parsed = {};
-    // Prefer Gemini for image receipts if configured
-    // TEMPORARILY DISABLED: fix API version issue first
-    // const gemTry = await extractWithGemini(buffer, type.mime);
-    // if (gemTry && (gemTry.amount || gemTry.date || gemTry.currency || gemTry.merchant)) {
-    //   parsed = { ...parsed, ...gemTry };
-    //   if (process.env.OCR_DEBUG === 'true') console.log('[gemini.debug] parsed', parsed);
-    // }
+    
     if (process.env.OCR_API_URL && process.env.OCR_API_KEY) {
       try {
         const base64 = buffer.toString('base64');
