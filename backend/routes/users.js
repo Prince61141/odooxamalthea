@@ -1,16 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { auth, requireAdmin } = require('../middleware/auth');
+const userController = require('../controllers/userController');
 
-router.post('/', async (req, res) => {
-  res.json({ message: 'Create user endpoint' });
-});
-
-router.patch('/:id/role', async (req, res) => {
-  res.json({ message: 'Change user role endpoint' });
-});
-
-router.patch('/:id/manager', async (req, res) => {
-  res.json({ message: 'Set manager endpoint' });
-});
+router.post('/', auth, requireAdmin, userController.createUser);
+router.get('/managers', auth, requireAdmin, userController.listManagers);
+router.post('/invite', auth, requireAdmin, userController.sendInvite);
 
 module.exports = router;
