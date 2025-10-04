@@ -104,3 +104,46 @@ exports.sendInvite = async (req, res) => {
     return res.status(500).json({ error: 'Failed to send invite' });
   }
 };
+
+// Admin: summary metrics for dashboard
+exports.summary = async (req, res) => {
+  try {
+    const company = req.user.companyId || req.user.company; // support both naming conventions
+    const filter = company ? { company } : {};
+    const [totalUsers, managers, employees, latestUser] = await Promise.all([
+      User.countDocuments(filter),
+      User.countDocuments({ ...filter, role: 'manager' }),
+      User.countDocuments({ ...filter, role: 'employee' }),
+      User.findOne(filter).sort({ createdAt: -1 }).select('createdAt role')
+    ]);
+
+    // Average employees per manager
+    let avgEmployeesPerManager = 0;
+    if (managers > 0) {
+      const employeeCounts = await User.aggregate([
+        { $match: { ...filter, role: 'employee' } },
+        { $group: { _id: '$manager', count: { $sum: 1 } } }
+      ]);
+      if (employeeCounts.length) {
+        const totalEmp = employeeCounts.reduce((a,b)=>a + b.count, 0);
+        avgEmployeesPerManager = totalEmp / managers;
+      }
+    }
+
+    // Recent growth: users created in last 30 days
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const recent = await User.countDocuments({ ...filter, createdAt: { $gte: since } });
+
+    return res.json({
+      totalUsers,
+      managers,
+      employees,
+      avgEmployeesPerManager: Number(avgEmployeesPerManager.toFixed(2)),
+      recentNewUsers30d: recent,
+      latestUserCreatedAt: latestUser?.createdAt || null
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load summary' });
+  }
+};

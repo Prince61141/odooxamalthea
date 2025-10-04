@@ -98,6 +98,29 @@ exports.teamSummary = async (req, res) => {
     // Pending count
     const pendingCount = await Expense.countDocuments({ company, status: 'pending' });
 
+    // Average approval time (approved expenses): difference between createdAt and approvedAt (or updatedAt) in hours
+    const approvalAgg = await Expense.aggregate([
+      { $match: { company, status: 'approved', approvedAt: { $ne: null } } },
+      { $project: { diffHours: { $divide: [ { $subtract: ['$approvedAt', '$createdAt'] }, 1000 * 60 * 60 ] } } },
+      { $group: { _id: null, avgHours: { $avg: '$diffHours' } } }
+    ]);
+    const averageApprovalHours = approvalAgg[0]?.avgHours || 0;
+
+    // Expense velocity: compare count of expenses last 7 days vs previous 7 days
+    const now = new Date();
+    const startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-6); // inclusive 7 day window
+    const startPrev = new Date(startCurrent); startPrev.setDate(startPrev.getDate()-7);
+    const velocityAgg = await Expense.aggregate([
+      { $match: { company, date: { $gte: startPrev } } },
+      { $project: { period: { $cond: [ { $gte: ['$date', startCurrent] }, 'current', 'previous' ] } } },
+      { $group: { _id: '$period', count: { $sum: 1 } } }
+    ]);
+    let currentCount = 0, previousCount = 0;
+    velocityAgg.forEach(r=> { if (r._id === 'current') currentCount = r.count; else if (r._id === 'previous') previousCount = r.count; });
+    let velocityChangePct = null;
+    if (previousCount === 0 && currentCount > 0) velocityChangePct = 100;
+    else if (previousCount > 0) velocityChangePct = ((currentCount - previousCount) / previousCount) * 100;
+
     // Resolve employee names for topEmployees
     const userMap = {};
     if (topEmployees.length) {
@@ -110,7 +133,13 @@ exports.teamSummary = async (req, res) => {
       categories: categoryAgg.map(c => ({ category: c._id, total: c.total })),
       monthly: monthlyAgg.map(m => ({ month: `${m._id.y}-${String(m._id.m).padStart(2,'0')}`, total: m.total })),
       topEmployees: topEmployees.map(t => ({ userId: t._id, name: userMap[t._id.toString()] || 'Unknown', total: t.total })),
-      pendingCount
+      pendingCount,
+      averageApprovalHours,
+      expenseVelocity: {
+        current7d: currentCount,
+        previous7d: previousCount,
+        changePct: velocityChangePct
+      }
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to load summary' });
