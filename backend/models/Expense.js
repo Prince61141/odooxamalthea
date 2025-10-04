@@ -9,6 +9,8 @@ const expenseSchema = new mongoose.Schema({
   description: { type: String },
   date: { type: Date, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  managerComment: { type: String },
+  approvedAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 
