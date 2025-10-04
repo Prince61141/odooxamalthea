@@ -19,7 +19,9 @@ const Icon = {
   logout:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5v18h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>),
   sun:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07 6.07-1.42-1.42M8.35 8.35 6.93 6.93m0 10.14 1.42-1.42m9.3-9.3-1.42 1.42"/></svg>),
   moon:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>),
-  bell:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg>)
+  bell:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg>),
+  settings:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c0 .69.4 1.31 1 1.51.61.21 1.28.05 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.69.21 1.51.4 1.51 1V10a2 2 0 0 1 0 4h-.09c-.69 0-1.31.4-1.51 1Z"/></svg>),
+  user:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>)
 };
 
 const tabs = [
@@ -46,6 +48,8 @@ export default function ManagerDashboard(){
   const [toast,setToast] = useState(null);
   const [notificationsOpen,setNotificationsOpen] = useState(false);
   const [notifications,setNotifications] = useState([]); // {id,msg,read,ts,type}
+  const [profileOpen,setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const prevMapRef = useRef(new Map());
 
   const loadData = useCallback(async()=>{
@@ -124,6 +128,12 @@ export default function ManagerDashboard(){
   };
 
   useEffect(()=>{ if(toast){ const id=setTimeout(()=>setToast(null), 3000); return ()=>clearTimeout(id);} },[toast]);
+  useEffect(()=>{
+    function docHandler(e){ if(profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false); }
+    function keyHandler(e){ if(e.key==='Escape') setProfileOpen(false); }
+    if(profileOpen){ document.addEventListener('mousedown', docHandler); document.addEventListener('keydown', keyHandler); }
+    return ()=>{ document.removeEventListener('mousedown', docHandler); document.removeEventListener('keydown', keyHandler); };
+  },[profileOpen]);
 
   const SummaryCard = ({ title, value, sub }) => (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col gap-1">
@@ -159,28 +169,82 @@ export default function ManagerDashboard(){
             <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{ active==='dashboard' ? 'Team Overview' : active==='pending' ? 'Pending Approvals' : active==='team' ? 'All Expenses' : 'Reports & Analytics' }</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
-            <button onClick={()=>setNotificationsOpen(o=>!o)} className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+            <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} aria-label="Toggle theme" className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
+            <button onClick={()=>setNotificationsOpen(o=>!o)} aria-label="Notifications" className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
               <Icon.bell className="w-4 h-4"/>
               {unread>0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-semibold">{unread}</span>}
             </button>
-            <div className="text-[11px] font-medium px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Role: {role}</div>
+            <div className="relative" ref={profileRef}>
+              <button onClick={()=>setProfileOpen(o=>!o)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-2 pr-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <span className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-xs font-semibold shadow-inner">{(role||'M').slice(0,2).toUpperCase()}</span>
+                <span className="hidden sm:inline-flex flex-col leading-tight text-left">
+                  <span className="text-xs font-medium -mb-0.5 capitalize">{role||'Manager'}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Menu</span>
+                </span>
+                <svg className={`w-3 h-3 transition-transform ${profileOpen? 'rotate-180':''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/></svg>
+              </button>
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Signed in as</div>
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{role} user</div>
+                  </div>
+                  <ul className="py-1 text-sm">
+                    <li>
+                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                        <Icon.user className="w-4 h-4"/> <span>View Profile</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                        <Icon.settings className="w-4 h-4"/> <span>Settings</span>
+                      </button>
+                    </li>
+                  </ul>
+                  <div className="py-1 border-t border-slate-100 dark:border-slate-700">
+                    <button onClick={logout} className="w-full flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium">
+                      <Icon.logout className="w-4 h-4"/> <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
         {/* Filters */}
         {(active==='team' || active==='pending' || active==='dashboard') && (
-          <div className="px-5 md:px-8 pt-5 flex flex-wrap items-center gap-3">
-            <input placeholder="Search employee/category" value={search} onChange={e=>setSearch(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg text-sm" />
-            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg text-sm">
+          <div className="px-5 md:px-8 pt-5 pb-4 flex flex-wrap items-center gap-3 bg-white/70 dark:bg-slate-800/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700">
+            <input 
+              placeholder="Search employee/category" 
+              value={search} 
+              onChange={e=>setSearch(e.target.value)} 
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 hover:dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-900/80 rounded-lg text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition" />
+            <select 
+              value={statusFilter} 
+              onChange={e=>setStatusFilter(e.target.value)} 
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 hover:dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-900/80 rounded-lg text-sm text-slate-700 dark:text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition">
               <option value="all">All statuses</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
-            <button onClick={exportCSV} className="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">Export CSV</button>
-            <button onClick={exportPDF} disabled={!filtered.length} className="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40">Export PDF</button>
-            <button onClick={loadData} className="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">Refresh</button>
+            <button 
+              onClick={exportCSV} 
+              className="px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-sm transition">
+              Export CSV
+            </button>
+            <button 
+              onClick={exportPDF} 
+              disabled={!filtered.length} 
+              className="px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+              Export PDF
+            </button>
+            <button 
+              onClick={loadData} 
+              className="px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-slate-800 transition">
+              Refresh
+            </button>
           </div>
         )}
 
