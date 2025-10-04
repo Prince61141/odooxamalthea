@@ -11,11 +11,13 @@ const Icon = {
   moon: (p)=> (<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>),
   menu:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>),
   x:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>),
-  logout:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5v18h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>)
+  logout:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5v18h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>),
+  trash:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>)
 };
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
+  { id: 'users', label: 'Users', icon: 'users' },
   { id: 'create', label: 'Add User', icon: 'plus' },
   { id: 'invite', label: 'Invite', icon: 'mail' }
 ];
@@ -30,6 +32,8 @@ export default function AdminDashboard() {
   const [active, setActive] = useState('overview');
   const [form, setForm] = useState({ name: '', email: '', role: 'manager', managerId: '' });
   const [managers, setManagers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [status, setStatus] = useState('');
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
@@ -54,7 +58,17 @@ export default function AdminDashboard() {
       .finally(()=> setLoadingSummary(false));
   },[token]);
 
-  useEffect(()=>{ fetchManagers(); fetchSummary(); }, [fetchManagers, fetchSummary]);
+  const fetchUsers = useCallback(()=>{
+    if (!token) return;
+    setLoadingUsers(true);
+    fetch('http://localhost:5000/api/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r=>r.json())
+      .then(data=> setUsers(Array.isArray(data)? data : []))
+      .catch(()=> setUsers([]))
+      .finally(()=> setLoadingUsers(false));
+  },[token]);
+
+  useEffect(()=>{ fetchManagers(); fetchSummary(); fetchUsers(); }, [fetchManagers, fetchSummary, fetchUsers]);
 
   useEffect(()=>{ mounted.current = true; return ()=>{ mounted.current=false; }; },[]);
 
@@ -81,6 +95,7 @@ export default function AdminDashboard() {
       setToast({ type:'success', msg:'User created' });
       setForm({ name: '', email: '', role: 'manager', managerId: '' });
       fetchSummary();
+      fetchUsers();
       if(form.role==='manager') fetchManagers();
     } catch (e) {
       setStatus(e.message);
@@ -102,6 +117,23 @@ export default function AdminDashboard() {
       setToast({ type:'success', msg:'Invite sent' });
     } catch (e) {
       setStatus(e.message);
+      setToast({ type:'error', msg:e.message });
+    }
+  };
+
+  const deleteUser = async (userId, userName) => {
+    if (!confirm(`Delete user "${userName}"? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      setToast({ type:'success', msg:'User deleted' });
+      fetchUsers();
+      fetchSummary();
+    } catch (e) {
       setToast({ type:'error', msg:e.message });
     }
   };
@@ -130,7 +162,7 @@ export default function AdminDashboard() {
             );
           })}
           <div className="mt-auto pt-4">
-            <button onClick={logout} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><Icon.logout className="w-4 h-4" /> Logout</button>
+            <button onClick={logout} className="inline-flex justify-center items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-medium px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"><Icon.mail className="w-4 h-4" /> Logout</button>
           </div>
         </nav>
       </aside>
@@ -143,7 +175,7 @@ export default function AdminDashboard() {
         <header className="h-16 px-4 md:px-8 flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-30">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button className="md:hidden p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" onClick={()=>setSidebarOpen(true)}><Icon.menu className="w-5 h-5" /></button>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{active==='overview'?'Admin Overview': active==='create'?'Add User':'Send Invite'}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{active==='overview'?'Admin Overview': active==='users'?'All Users': active==='create'?'Add User':'Send Invite'}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
@@ -165,7 +197,7 @@ export default function AdminDashboard() {
                   <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent Growth</h2>
                   <div className="text-3xl font-semibold text-slate-800 dark:text-white">{summary?.recentNewUsers30d ?? '—'}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Users added in the last 30 days.</p>
-                  <button onClick={fetchSummary} className="self-start text-xs px-3 py-2 rounded-lg border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Refresh</button>
+                  <button onClick={fetchSummary} className="self-start text-xs px-3 py-2 rounded-lg border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-white">Refresh</button>
                 </div>
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 flex flex-col gap-4">
                   <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Latest User</h2>
@@ -176,29 +208,87 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {active==='users' && (
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-white">All Users</h2>
+                <button onClick={fetchUsers} className="text-xs px-3 py-2 rounded-lg border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-white">Refresh</button>
+              </div>
+              {loadingUsers ? (
+                <div className="text-sm text-slate-500 dark:text-slate-400">Loading users...</div>
+              ) : users.length === 0 ? (
+                <div className="text-sm text-slate-500 dark:text-slate-400">No users found.</div>
+              ) : (
+                <div className="overflow-x-auto -mx-6 px-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Name</th>
+                        <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Email</th>
+                        <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Role</th>
+                        <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Manager</th>
+                        <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Created</th>
+                        <th className="text-right py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map(u => (
+                        <tr key={u._id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                          <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">{u.name}</td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.email}</td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${u.role==='admin'?'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300': u.role==='manager'?'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300':'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'}`}>{u.role}</span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                            {u.role === 'employee' && u.manager ? (
+                              <span className="text-sm">{u.manager.name}</span>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.createdAt? new Date(u.createdAt).toLocaleDateString(): '—'}</td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={() => deleteUser(u._id, u.name)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition"
+                              title="Delete user"
+                            >
+                              <Icon.trash className="w-3.5 h-3.5" />
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {active==='create' && (
             <div className="space-y-6">
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-white mb-4">Add User</h2>
                 <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Name</label>
-                    <input value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm" required />
+                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-1">Name</label>
+                    <input value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400" required />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Email</label>
-                    <input type="email" value={form.email} onChange={e=>setForm(v=>({...v,email:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm" required />
+                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-1">Email</label>
+                    <input type="email" value={form.email} onChange={e=>setForm(v=>({...v,email:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400" required />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Role</label>
-                    <select value={form.role} onChange={e=>setForm(v=>({...v,role:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm">
+                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-1">Role</label>
+                    <select value={form.role} onChange={e=>setForm(v=>({...v,role:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white">
                       <option value="manager">Manager</option>
                       <option value="employee">Employee</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Manager (for Employee)</label>
-                    <select disabled={form.role!=='employee'} value={form.managerId} onChange={e=>setForm(v=>({...v,managerId:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm">
+                    <label className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-1">Manager (for Employee)</label>
+                    <select disabled={form.role!=='employee'} value={form.managerId} onChange={e=>setForm(v=>({...v,managerId:e.target.value}))} className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed">
                       <option value="">None</option>
                       {managers.map(m=> <option key={m._id} value={m._id}>{m.name} ({m.email})</option>)}
                     </select>
@@ -218,7 +308,7 @@ export default function AdminDashboard() {
               <h2 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-white">Send Quick Invite</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">Enter an email to generate or reuse an account with a temporary password and send an invite email.</p>
               <div className="flex flex-col md:flex-row gap-3">
-                <input value={form.email} onChange={e=>setForm(v=>({...v,email:e.target.value}))} placeholder="user@example.com" className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+                <input value={form.email} onChange={e=>setForm(v=>({...v,email:e.target.value}))} placeholder="user@example.com" className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400" />
                 <button onClick={sendInvite} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 text-sm"><Icon.mail className="w-4 h-4"/>Send Invite</button>
               </div>
               {status && <div className="text-xs text-indigo-600 dark:text-indigo-400">{status}</div>}
