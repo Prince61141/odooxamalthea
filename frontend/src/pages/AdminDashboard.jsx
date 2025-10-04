@@ -12,7 +12,9 @@ const Icon = {
   menu:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>),
   x:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>),
   logout:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5v18h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>),
-  trash:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>)
+  trash:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>),
+  settings:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c0 .69.4 1.31 1 1.51.61.21 1.28.05 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.69.21 1.51.4 1.51 1V10a2 2 0 0 1 0 4h-.09c-.69 0-1.31.4-1.51 1Z"/></svg>),
+  user:(p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>)
 };
 
 const tabs = [
@@ -38,6 +40,8 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [toast, setToast] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const mounted = useRef(false);
 
   const fetchManagers = useCallback(()=>{
@@ -79,6 +83,12 @@ export default function AdminDashboard() {
 
   // Toast auto dismiss
   useEffect(()=>{ if(toast){ const id=setTimeout(()=>setToast(null), 3000); return ()=>clearTimeout(id);} }, [toast]);
+  useEffect(()=>{
+    function handleDoc(e){ if(profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false); }
+    function handleKey(e){ if(e.key==='Escape') setProfileOpen(false); }
+    if(profileOpen){ document.addEventListener('mousedown', handleDoc); document.addEventListener('keydown', handleKey); }
+    return ()=>{ document.removeEventListener('mousedown', handleDoc); document.removeEventListener('keydown', handleKey); };
+  },[profileOpen]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -178,8 +188,42 @@ export default function AdminDashboard() {
             <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-white truncate">{active==='overview'?'Admin Overview': active==='users'?'All Users': active==='create'?'Add User':'Send Invite'}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
-            <div className="text-[11px] font-medium px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Role: {role}</div>
+            <button onClick={()=>setDark(d=>{ const v=!d; try { localStorage.setItem('themeDark', String(v)); } catch(_){} return v; })} aria-label="Toggle theme" className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{dark? <Icon.sun className="w-4 h-4"/> : <Icon.moon className="w-4 h-4"/>}</button>
+            <div className="relative" ref={profileRef}>
+              <button onClick={()=>setProfileOpen(o=>!o)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-2 pr-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <span className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-xs font-semibold shadow-inner">{(role||'A').slice(0,2).toUpperCase()}</span>
+                <span className="hidden sm:inline-flex flex-col leading-tight text-left">
+                  <span className="text-xs font-medium -mb-0.5 capitalize">{role || 'User'}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Admin</span>
+                </span>
+                <svg className={`w-3 h-3 transition-transform ${profileOpen? 'rotate-180':''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/></svg>
+              </button>
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Signed in as</div>
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{role} user</div>
+                  </div>
+                  <ul className="py-1 text-sm">
+                    <li>
+                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                        <Icon.user className="w-4 h-4"/> <span>View Profile</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200">
+                        <Icon.settings className="w-4 h-4"/> <span>Settings</span>
+                      </button>
+                    </li>
+                  </ul>
+                  <div className="py-1 border-t border-slate-100 dark:border-slate-700">
+                    <button onClick={logout} className="w-full flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium">
+                      <Icon.logout className="w-4 h-4"/> <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -227,6 +271,7 @@ export default function AdminDashboard() {
                         <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Email</th>
                         <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Role</th>
                         <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Manager</th>
+                        {/* <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Company</th> */}
                         <th className="text-left py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Created</th>
                         <th className="text-right py-3 px-4 font-medium text-slate-700 dark:text-slate-300">Actions</th>
                       </tr>
@@ -241,11 +286,15 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                             {u.role === 'employee' && u.manager ? (
-                              <span className="text-sm">{u.manager.name}</span>
+                              <div className="flex flex-col leading-tight">
+                                <span className="text-sm font-medium">{u.manager.name || '—'}</span>
+                                {u.manager.email && <span className="text-[11px] text-slate-500 dark:text-slate-400">{u.manager.email}</span>}
+                              </div>
                             ) : (
                               <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
                             )}
                           </td>
+                          {/* <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.companyName || '—'}</td> */}
                           <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{u.createdAt? new Date(u.createdAt).toLocaleDateString(): '—'}</td>
                           <td className="py-3 px-4 text-right">
                             <button
