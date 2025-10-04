@@ -8,10 +8,15 @@ const companyRoutes = require('./routes/company');
 const countryRoutes = require('./routes/countries');
 const currencyRoutes = require('./routes/currency');
 const expenseRoutes = require('./routes/expenses');
+const currencyService = require('./util/currencyService');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+// Static serving for uploaded receipts
+const path = require('path');
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadDir));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -77,6 +82,8 @@ function startServer() {
 	if (app.locals.started) return; // prevent double start
 	app.locals.started = true;
 	app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  // Warm currency data (non-blocking)
+  currencyService.ensureCurrencyDataLoaded().catch(e=> console.warn('[startup] currency warm failed', e.message));
 }
 
 // Global process-level safety nets

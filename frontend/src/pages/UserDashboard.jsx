@@ -52,6 +52,10 @@ export default function UserDashboard() {
   });
   const voiceSupported = typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
   const recognitionRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [receiptMeta, setReceiptMeta] = useState({ receiptUrl: null, ocrText: null, ocrData: null });
+  const dropRef = useRef(null);
 
   // Fetch expenses
   const loadExpenses = useCallback(async () => {
@@ -149,38 +153,69 @@ export default function UserDashboard() {
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (files) {
-      // Basic OCR mock: read filename to infer category/amount numbers
       const file = files[0];
-      setForm(f=>({...f, file }));
-      if (file) {
-        const lower = file.name.toLowerCase();
-        const amountMatch = lower.match(/(\d+)(?:\.\d{1,2})?/);
-        const cat = categories.find(c=> lower.includes(c.toLowerCase()));
-        setTimeout(()=>{
-          setForm(f=> ({...f,
-            amount: f.amount || (amountMatch? amountMatch[1] : f.amount),
-            category: f.category || cat || f.category,
-            description: f.description || file.name.replace(/[_-]/g,' ')
-          }));
-          setToast({type:'success', msg:'OCR scan complete (mock)'});
-        }, 800);
-      }
+      if (!file) return;
+      uploadReceiptFile(file);
     } else {
       setForm({ ...form, [name]: value });
     }
   };
 
-  const applySuggestion = () => { if (aiSuggestion) setForm(f=>({...f, category: aiSuggestion })); };
+  function uploadReceiptFile(file){
+    if (!file) return;
+    if (!/\.(png|jpe?g|pdf)$/i.test(file.name)) { setToast({type:'error', msg:'Only PNG/JPG/PDF allowed'}); return; }
+    setUploading(true); setUploadProgress(0);
+    const data = new FormData();
+    data.append('file', file);
+    api.post('/expenses/receipt', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: ev => { if (ev.total) setUploadProgress(Math.round((ev.loaded/ev.total)*100)); }
+    }).then(res=> {
+      const o = res.data?.ocrData || {};
+      setForm(f=> {
+        const next = { ...f, file };
+        if (!f.amount && o.amount != null) next.amount = o.amount;
+        if ((!f.currency || f.currency === 'USD') && o.currency) next.currency = o.currency;
+        if (!f.date && o.date) {
+          try { next.date = new Date(o.date).toISOString().split('T')[0]; } catch(_){}
+        }
+        if (!f.description && o.merchant) next.description = o.merchant;
+        return next;
+      });
+      setReceiptMeta({ receiptUrl: res.data.receiptUrl, ocrText: res.data.ocrText, ocrData: res.data.ocrData });
+      const hasAny = o.amount || o.currency || o.date || o.merchant;
+      setToast({type: hasAny? 'success' : 'info', msg: hasAny? 'Receipt uploaded & data extracted' : 'Receipt uploaded (no data parsed)'});
+    }).catch(err=> {
+      setToast({type:'error', msg: err.response?.data?.error || 'Upload failed'});
+    }).finally(()=> setUploading(false));
+  }
 
+  // Drag & drop handlers
+  useEffect(()=>{
+    const el = dropRef.current; if(!el) return;
+    const prevent = e=> { e.preventDefault(); e.stopPropagation(); };
+    const onDrop = e=> { prevent(e); const file = e.dataTransfer.files?.[0]; if (file) uploadReceiptFile(file); };
+    ['dragenter','dragover','dragleave','drop'].forEach(evt=> el.addEventListener(evt, prevent));
+    el.addEventListener('drop', onDrop);
+    return ()=> { ['dragenter','dragover','dragleave','drop'].forEach(evt=> el.removeEventListener(evt, prevent)); el.removeEventListener('drop', onDrop); };
+  }, []);
+
+  // Submit expense
   const submitExpense = async (e) => {
     e.preventDefault();
     if (!form.amount || !form.category || !form.date) return;
     setSubmitting(true);
     try {
       const payload = { amount: parseFloat(form.amount), currency: form.currency, category: form.category, description: form.description, date: form.date };
+      if (receiptMeta.receiptUrl) {
+        payload.receiptUrl = receiptMeta.receiptUrl;
+        payload.ocrText = receiptMeta.ocrText;
+        payload.ocrData = receiptMeta.ocrData;
+      }
       await api.post('/expenses', payload);
       setToast({type:'success', msg:'Expense submitted'});
       setForm(f=>({...f, amount:'', category:'', description:'', date:'', file:null }));
+      setReceiptMeta({ receiptUrl:null, ocrText:null, ocrData:null });
       loadExpenses();
     } catch(e){
       setToast({type:'error', msg: e.response?.data?.error || 'Submit failed'});

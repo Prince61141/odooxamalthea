@@ -8,6 +8,15 @@ const expenseSchema = new mongoose.Schema({
   category: { type: String, required: true },
   description: { type: String },
   date: { type: Date, required: true },
+  // Receipt attachment & OCR enrichment
+  receiptUrl: { type: String }, // public URL to receipt in storage bucket
+  ocrText: { type: String }, // raw extracted text
+  ocrData: { // structured parsed data extracted from OCR heuristics
+    amount: { type: Number },
+    currency: { type: String },
+    date: { type: Date },
+    merchant: { type: String }
+  },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   managerComment: { type: String },
   approvedAt: { type: Date },

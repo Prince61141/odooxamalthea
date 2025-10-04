@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const currencyService = require('../util/currencyService');
 const router = express.Router();
 
 router.get('/convert', async (req, res) => {
@@ -15,3 +16,14 @@ router.get('/convert', async (req, res) => {
 });
 
 module.exports = router;
+
+// Additional endpoints
+router.get('/codes', async (req, res) => {
+  try {
+    await currencyService.ensureCurrencyDataLoaded();
+    res.json({ codes: currencyService.getCurrencyCodes() });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load currency codes' });
+  }
+});
+

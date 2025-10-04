@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
 const expenseController = require('../controllers/expenseController');
+const multer = require('multer');
+// memory storage: retain file in buffer then write to local filesystem in controller
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Simple role guard
 function requireManager(req, res, next) {
@@ -10,6 +13,9 @@ function requireManager(req, res, next) {
   }
   next();
 }
+
+// POST /api/expenses/receipt -> upload receipt & OCR (returns receiptUrl + ocr data)
+router.post('/receipt', auth, upload.single('file'), expenseController.uploadReceipt);
 
 // POST /api/expenses -> submit expense
 router.post('/', auth, expenseController.createExpense);
